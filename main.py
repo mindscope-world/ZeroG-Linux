@@ -8,6 +8,17 @@ import pyperclip
 import pyautogui
 import mlx_whisper
 import Quartz 
+import os
+import logging
+
+# Setup logging to file in the script's directory
+log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # MLX models are pulled from HuggingFace. 
@@ -25,8 +36,8 @@ class AudioRecorder:
         self.audio_queue = queue.Queue()
         self.stream = None
         
-        print(f"Loading MLX Whisper Model ({MODEL_PATH})...")
-        print("Warming up model to compile shaders (this takes a moment)...")
+        logger.info(f"Loading MLX Whisper Model ({MODEL_PATH})...")
+        logger.info("Warming up model to compile shaders (this takes a moment)...")
         
         # --- WARM UP ---
         # MLX compiles lazily. We run a dummy transcription so the first
@@ -34,9 +45,9 @@ class AudioRecorder:
         warmup_audio = np.zeros(16000, dtype=np.float32)
         try:
             mlx_whisper.transcribe(warmup_audio, path_or_hf_repo=MODEL_PATH)
-            print("Model Warmup Complete. Ready. (Hold Left Control)")
+            logger.info("Model Warmup Complete. Ready. (Hold Left Control)")
         except Exception as e:
-            print(f"Warmup failed (check internet connection for model download?): {e}")
+            logger.error(f"Warmup failed (check internet connection for model download?): {e}", exc_info=True)
 
     def play_sound(self):
         subprocess.Popen(["afplay", SOUND_FILE])
@@ -47,7 +58,7 @@ class AudioRecorder:
 
     def start_recording(self):
         if self.recording: return 
-        print("\nListening...")
+        logger.info("Listening...")
         self.recording = True
         self.audio_queue = queue.Queue()
         self.play_sound()
@@ -60,7 +71,7 @@ class AudioRecorder:
 
     def stop_recording(self):
         if not self.recording: return
-        print("Processing...")
+        logger.info("Processing...")
         self.recording = False
         if self.stream:
             self.stream.stop()
@@ -89,10 +100,10 @@ class AudioRecorder:
         text = result["text"].strip()
         
         if text:
-            print(f"Detected: {text}")
+            logger.info(f"Detected: {text}")
             self.inject_text(text)
         else:
-            print("No speech detected.")
+            logger.info("No speech detected.")
 
     def inject_text(self, text):
         pyperclip.copy(text)
@@ -123,4 +134,4 @@ if __name__ == "__main__":
             time.sleep(POLL_INTERVAL)
 
     except KeyboardInterrupt:
-        print("\nExiting...")
+        logger.info("Exiting...")

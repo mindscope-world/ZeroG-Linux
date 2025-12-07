@@ -10,7 +10,8 @@ import mlx_whisper
 import Quartz 
 import os
 import logging
-import google.generativeai as genai
+import logging
+from ai_processing import AIProcessor
 
 # Setup logging to file in the script's directory
 log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
@@ -30,8 +31,6 @@ SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Breeze.aiff"
 KEY_CODE_CTRL = 59 
 POLL_INTERVAL = 0.05
-GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_MODEL_NAME = "gemini-1.5-flash"
 
 
 class AudioRecorder:
@@ -53,18 +52,8 @@ class AudioRecorder:
         except Exception as e:
             logger.error(f"Warmup failed (check internet connection for model download?): {e}", exc_info=True)
 
-        # --- GEMINI SETUP ---
-        if GEMINI_API_KEY:
-            try:
-                genai.configure(api_key=GEMINI_API_KEY)
-                self.gemini_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-                logger.info(f"Gemini configured with model: {GEMINI_MODEL_NAME}")
-            except Exception as e:
-                logger.error(f"Failed to configure Gemini: {e}", exc_info=True)
-                self.gemini_model = None
-        else:
-            logger.warning("GOOGLE_API_KEY not found in environment. Gemini processing disabled.")
-            self.gemini_model = None
+        # --- AI PROCESSING SETUP ---
+        self.ai_processor = AIProcessor()
 
     def play_sound(self):
         subprocess.Popen(["afplay", SOUND_FILE])
@@ -119,30 +108,13 @@ class AudioRecorder:
         if text:
             logger.info(f"Raw Detected: {text}")
             
-            # Post-process with Gemini if available
-            if self.gemini_model:
-                text = self.process_text_with_gemini(text)
+            # Post-process with Gemini
+            text = self.ai_processor.process_text(text)
                 
             logger.info(f"Final Text: {text}")
             self.inject_text(text)
         else:
             logger.info("No speech detected.")
-
-    def process_text_with_gemini(self, text):
-        try:
-            prompt = (
-                "You are a helpful assistant that lightly edits transcribed speech. "
-                "Your only job is to add necessary punctuation, break text into paragraphs, "
-                "and format lists if the speaker is clearly listing items. "
-                "Do not change the words, tone, or meaning. "
-                "Output only the edited text.\n\n"
-                f"Transcript: {text}"
-            )
-            response = self.gemini_model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            logger.error(f"Gemini processing failed: {e}", exc_info=True)
-            return text
 
     def inject_text(self, text):
         pyperclip.copy(text)

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Options: "mlx-community/whisper-tiny-mlx", "mlx-community/whisper-small-mlx"
 MODEL_PATH = "mlx-community/whisper-base-mlx"
 SAMPLE_RATE = 16000
-SOUND_FILE = "/System/Library/Sounds/Breeze.aiff"
+SOUND_FILE = "/System/Library/Sounds/Tink.aiff"
 KEY_CODE_CTRL = 59 
 POLL_INTERVAL = 0.05
 

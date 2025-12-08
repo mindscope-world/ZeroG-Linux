@@ -25,6 +25,12 @@ A local macOS dictation app using MLX Whisper.
     pip install -r requirements.txt
     ```
 
+## Configuration
+
+You can customize the application by editing `main.py`:
+- **Sound**: Change `SOUND_FILE` to any standard macOS sound (e.g., `/System/Library/Sounds/Pop.aiff`).
+- **Model**: Change `MODEL_PATH` to use a different Whisper model (e.g., `tiny`, `small`, `large`).
+
 ## Usage
 
 Run the main script:

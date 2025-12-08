@@ -10,8 +10,6 @@ import mlx_whisper
 import Quartz 
 import os
 import logging
-import logging
-from ai_processing import AIProcessor
 
 # Setup logging to file in the script's directory
 log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
@@ -28,10 +26,9 @@ logger = logging.getLogger(__name__)
 # Options: "mlx-community/whisper-tiny-mlx", "mlx-community/whisper-small-mlx"
 MODEL_PATH = "mlx-community/whisper-base-mlx"
 SAMPLE_RATE = 16000
-SOUND_FILE = "/System/Library/Sounds/Tink.aiff"
+SOUND_FILE = "/System/Library/Sounds/Breeze.aiff"
 KEY_CODE_CTRL = 59 
 POLL_INTERVAL = 0.05
-
 
 class AudioRecorder:
     def __init__(self):
@@ -51,9 +48,6 @@ class AudioRecorder:
             logger.info("Model Warmup Complete. Ready. (Hold Left Control)")
         except Exception as e:
             logger.error(f"Warmup failed (check internet connection for model download?): {e}", exc_info=True)
-
-        # --- AI PROCESSING SETUP ---
-        self.ai_processor = AIProcessor()
 
     def play_sound(self):
         subprocess.Popen(["afplay", SOUND_FILE])
@@ -106,12 +100,7 @@ class AudioRecorder:
         text = result["text"].strip()
         
         if text:
-            logger.info(f"Raw Detected: {text}")
-            
-            # Post-process with Gemini
-            text = self.ai_processor.process_text(text)
-                
-            logger.info(f"Final Text: {text}")
+            logger.info(f"Detected: {text}")
             self.inject_text(text)
         else:
             logger.info("No speech detected.")

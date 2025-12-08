@@ -5,30 +5,30 @@ import threading
 import numpy as np
 import sounddevice as sd
 import pyperclip
-import pyautogui
 import mlx_whisper
 import Quartz 
 import os
 import logging
 
-# Setup logging to file in the script's directory
-log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
-logging.basicConfig(
-    filename=log_file,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# --- Configuration ---
-# MLX models are pulled from HuggingFace. 
-# "mlx-community/whisper-base-mlx" is a solid balance of speed/accuracy.
 # Options: "mlx-community/whisper-tiny-mlx", "mlx-community/whisper-small-mlx"
 MODEL_PATH = "mlx-community/whisper-base-mlx"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 KEY_CODE_CTRL = 59 
 POLL_INTERVAL = 0.05
+ENABLE_LOGGING = False # Set to True to enable debug logging to file
+
+# Setup logging
+logger = logging.getLogger(__name__)
+if ENABLE_LOGGING:
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+else:
+    logging.basicConfig(level=logging.CRITICAL) # Suppress non-critical logs
 
 class AudioRecorder:
     def __init__(self):
@@ -107,9 +107,10 @@ class AudioRecorder:
 
     def inject_text(self, text):
         pyperclip.copy(text)
-        time.sleep(0.1)
-        with pyautogui.hold('command'):
-            pyautogui.press('v')
+        # Minimal delay to ensure clipboard update (50ms is usually imperceptible but safe)
+        time.sleep(0.05) 
+        # Use AppleScript for robust pasting without long delays
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])
 
 def is_key_pressed(keycode):
     """Polls hardware state of specific key (Left Ctrl = 59)"""

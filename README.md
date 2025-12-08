@@ -4,9 +4,16 @@ A local macOS dictation app using **MLX Whisper** for fast, private, on-device t
 
 ## Features
 - **Local Transcription**: Uses `mlx-whisper` (Apple Silicon optimized).
-- **Global Hotkey**: Press `Left Control` to toggle recording.
+- **Global Hotkey**: **Hold** `Left Control` to record.
 - **Audio Feedback**: Plays a confirmation sound (configurable).
 - **Background Service**: Ready for macOS Automator integration.
+
+## Permissions & Privacy
+
+MacDictate is a local-only application. Audio data never leaves your device.
+- **Microphone**: Required to listen to your dictation.
+- **Accessibility**: Required to read the global hotkey (`Left Control`).
+- **Automation (System Events)**: Required to paste text into other applications.
 
 ## Installation
 
@@ -27,7 +34,7 @@ A local macOS dictation app using **MLX Whisper** for fast, private, on-device t
 You can customize the application by editing `main.py`:
 - **Sound**: Change `SOUND_FILE` to any standard macOS sound.
   - Recommended: `/System/Library/Sounds/Pop.aiff` or `Tink.aiff`.
-- **Model**: Change `MODEL_PATH` to use a different Whisper model (e.g., `mlx-community/whisper-tiny-mlx`, `small`, `large`).
+- **Logging**: Set `ENABLE_LOGGING = True` to write debug logs to `mac_dictate.log`.
 
 ## Usage
 
@@ -35,7 +42,7 @@ You can customize the application by editing `main.py`:
 ```bash
 python main.py
 ```
-- **Start/Stop Recording**: Press `Left Control`.
+- **Dictate**: **Hold** `Left Control` to start recording. **Release** to stop and transcribe.
 - **Output**: Transcribed text is copied to clipboard and pasted into the active application.
 
 ### Run as macOS Service (Automator)

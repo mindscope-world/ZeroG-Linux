@@ -1,11 +1,12 @@
 # MacDictate
 
-A local macOS dictation app using MLX Whisper.
+A local macOS dictation app using **MLX Whisper** for fast, private, on-device transcription on Apple Silicon.
 
 ## Features
-- **Local Transcription**: Uses `mlx-whisper` for fast, private transcription on Apple Silicon.
-- **Global Hotkey**: Toggle recording with `Left Control`.
-- **Background Mode**: Can be run via Automator as a service.
+- **Local Transcription**: Uses `mlx-whisper` (Apple Silicon optimized).
+- **Global Hotkey**: Press `Left Control` to toggle recording.
+- **Audio Feedback**: Plays a confirmation sound (configurable).
+- **Background Service**: Ready for macOS Automator integration.
 
 ## Installation
 
@@ -15,47 +16,41 @@ A local macOS dictation app using MLX Whisper.
     cd MacDictate
     ```
 
-2.  **Set up Python Environment**:
-    Recommended to use `pyenv` and python 3.11.
+2.  **Install Dependencies**:
+    Requires Python 3.11+. Recommended to use a virtual environment.
     ```bash
-    pyenv install 3.11.9
-    pyenv local 3.11.9
-    cd .
-    # Create venv if desired, or use pyenv directly
     pip install -r requirements.txt
     ```
 
 ## Configuration
 
 You can customize the application by editing `main.py`:
-- **Sound**: Change `SOUND_FILE` to any standard macOS sound (e.g., `/System/Library/Sounds/Pop.aiff`).
-- **Model**: Change `MODEL_PATH` to use a different Whisper model (e.g., `tiny`, `small`, `large`).
+- **Sound**: Change `SOUND_FILE` to any standard macOS sound.
+  - Recommended: `/System/Library/Sounds/Pop.aiff` or `Tink.aiff`.
+- **Model**: Change `MODEL_PATH` to use a different Whisper model (e.g., `mlx-community/whisper-tiny-mlx`, `small`, `large`).
 
 ## Usage
 
-Run the main script:
+### Manual Run
 ```bash
 python main.py
 ```
-
 - **Start/Stop Recording**: Press `Left Control`.
-- **Output**: Text is copied to clipboard and pasted into the active application.
+- **Output**: Transcribed text is copied to clipboard and pasted into the active application.
 
-## Automator Setup (Run as Service)
+### Run as macOS Service (Automator)
 
-To run MacDictate in the background using macOS Automator:
+To run MacDictate in the background automatically:
 
-1.  Open **Automator** and create a new **Application**.
-2.  Add a **Run Shell Script** action.
-3.  Set "Pass input" to `to stdin`.
-4.  Paste the contents of `run_mac_dictate.sh` (or just call the script directly):
-
+1.  Open **Automator** on your Mac.
+2.  Create a new **Application**.
+3.  Search for and add the **Run Shell Script** action.
+4.  Set "Pass input" to `to stdin`.
+5.  Paste the correct command to launch the included script:
     ```bash
     /Users/antony/Documents/Projects/MacDictate/run_mac_dictate.sh
     ```
-    *(Make sure `run_mac_dictate.sh` is executable: `chmod +x run_mac_dictate.sh`)*
+    *Note: Edit `run_mac_dictate.sh` if your python path or project location changes.*
 
-5.  Save the Automator app (e.g., "MacDictate Service").
-6.  Add the Automator app to your **Login Items** in System Settings if you want it to start automatically.
-
-**Note:** The `run_mac_dictate.sh` script is configured to use the absolute path to your specific Python environment to avoid path issues in Automator. If you move the project or change python versions, check this script.
+6.  Save the application (e.g., "MacDictate").
+7.  (Optional) Add it to **System Settings > General > Login Items** to start on boot.

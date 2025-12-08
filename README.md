@@ -1,10 +1,9 @@
 # MacDictate
 
-A local macOS dictation app using MLX Whisper and Gemini.
+A local macOS dictation app using MLX Whisper.
 
 ## Features
 - **Local Transcription**: Uses `mlx-whisper` for fast, private transcription on Apple Silicon.
-- **Smart Formatting**: Post-processes text with Google Gemini (optional) for punctuation and structure.
 - **Global Hotkey**: Toggle recording with `Left Control`.
 - **Background Mode**: Can be run via Automator as a service.
 
@@ -24,12 +23,6 @@ A local macOS dictation app using MLX Whisper and Gemini.
     cd .
     # Create venv if desired, or use pyenv directly
     pip install -r requirements.txt
-    ```
-
-3.  **Environment Variables**:
-    Create a `.env` file with your Google API key:
-    ```
-    GOOGLE_API_KEY=your_key_here
     ```
 
 ## Usage

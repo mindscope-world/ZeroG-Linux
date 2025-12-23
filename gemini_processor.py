@@ -3,68 +3,86 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import logging
 
-# Load environment variables from .env file
+# Load environment variables (like our API key) from the .env file
 load_dotenv()
 
-# Configure logging
+# Setup logging for this specific file
 logger = logging.getLogger(__name__)
 
-# Options: "gemini-3-flash-preview", "gemini-1.5-flash"
+# The specific Google Gemini model we are using for text cleanup.
+# IMPORTANT: This feature sends text to Google's servers for processing.
 MODEL_NAME = "gemini-3-flash-preview"
 
-# Initialize Gemini API
+# --- Gemini API Initialization ---
+# Get the API key from our environment
 api_key = os.getenv("GOOGLE_API_KEY")
+
 if api_key:
+    # If a key exists, configure the Google AI library
     genai.configure(api_key=api_key)
     
-    # Optimization: Load system_instruction from external file for easier iteration
+    # Load the specific instructions for Gemini from 'gemini_prompt.txt'
+    # This file tells Gemini HOW to rewrite the text (e.g., "Make it friendly for Slack").
     prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_prompt.txt")
     try:
         with open(prompt_path, "r") as f:
             system_instruction = f.read().strip()
     except Exception as e:
+        # If the file is missing, use a simple default instruction
         logger.error(f"Failed to load gemini_prompt.txt: {e}")
         system_instruction = "Reformulate text as a professional document."
     
+    # Configuration for how Gemini generates text
     generation_config = {
-        "temperature": 0.0,
+        "temperature": 0.0, # 0.0 means "be predictable and stay on task", 1.0 would be "be creative"
         "max_output_tokens": 1024,
         "response_mime_type": "text/plain",
     }
     
+    # Create the model object that we will use to process text
     model = genai.GenerativeModel(
         model_name=MODEL_NAME,
         system_instruction=system_instruction,
         generation_config=generation_config
     )
     
-    # --- WARMUP ---
+    # --- Model Warmup ---
+    # Like Whisper, Gemini can be slow on the very first request.
+    # We send a tiny request now so it's "awake" when the user needs it.
     def warmup_gemini():
         try:
-            # Simple, short prompt to trigger connection establishment and internal caching
             model.generate_content("Warmup.")
             logger.info("Gemini Warmup Complete.")
         except Exception as e:
+            # If warmup fails (maybe no internet), we just ignore it for now
             logger.debug(f"Gemini Warmup failed (ignoring): {e}")
 
-    # Run warmup in a separate thread so it doesn't block main app startup
+    # Run the warmup in the background so it doesn't slow down the main app startup
     import threading
     threading.Thread(target=warmup_gemini, daemon=True).start()
+    
+    # Flag to tell the rest of the app that Gemini is ready to use
+    IS_CONFIGURED = True
 else:
+    # If no API key is found, we can't use Gemini
     logger.warning("GOOGLE_API_KEY not found in environment variables. Gemini processing will be skipped.")
     model = None
+    IS_CONFIGURED = False
 
 def process_text(text):
     """
-    Process transcription using Gemini for light editing and punctuation.
+    Takes raw transcription text and sends it to Gemini for polishing.
+    Returns the polished text, or the original text if processing fails.
     """
     if not model or not text.strip():
+        # If Gemini isn't set up or text is empty, just return what we have
         return text
 
-    # Prompt is now very short since instructions are in system_instruction
+    # We send the text to Gemini with a simple label
     prompt = f"Text: {text}"
 
     try:
+        # Send the request to Google's servers
         response = model.generate_content(prompt)
         if response and response.text:
             processed = response.text.strip()
@@ -72,5 +90,6 @@ def process_text(text):
             return processed
         return text
     except Exception as e:
+        # If something goes wrong (internet outage, API error), fall back to original text
         logger.error(f"Gemini processing failed: {e}")
         return text

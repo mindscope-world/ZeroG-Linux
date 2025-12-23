@@ -1,6 +1,5 @@
 mac_dictate.log
 .env
-.env.example
 # System Files
 .DS_Store
 .AppleDouble

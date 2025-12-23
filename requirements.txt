@@ -3,3 +3,5 @@ sounddevice
 numpy
 pyperclip
 pyobjc-framework-Quartz
+google-generativeai
+python-dotenv

@@ -65,3 +65,8 @@ temp/
 *.p12
 *.pfx
 .htpasswd
+
+# Personal
+journal/
+
+

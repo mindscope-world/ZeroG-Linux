@@ -106,8 +106,13 @@ class AudioRecorder:
             self.stream.stop()
             self.stream.close()
         
-        # Process the captured audio
-        self.transcribe_and_type(use_gemini=use_gemini)
+        # Process the captured audio in a background thread so the main loop
+        # stays responsive for the next dictation.
+        threading.Thread(
+            target=self.transcribe_and_type, 
+            args=(use_gemini,), 
+            daemon=True
+        ).start()
 
     def transcribe_and_type(self, use_gemini=False):
         """Converts audio to text and sends it to the active window."""

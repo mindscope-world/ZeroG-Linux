@@ -35,7 +35,7 @@ if api_key:
     # Configuration for how Gemini generates text
     generation_config = {
         "temperature": 0.0, # 0.0 means "be predictable and stay on task", 1.0 would be "be creative"
-        "max_output_tokens": 1024,
+        "max_output_tokens": 4096,
         "response_mime_type": "text/plain",
     }
     

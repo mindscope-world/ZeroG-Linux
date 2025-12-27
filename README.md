@@ -114,4 +114,22 @@ Want MacDictate to look like a real app in your Dock or Launcher? We've included
 6. Press `Command + V` (Paste).
 
 ---
+
+## 🧪 Development & Testing
+
+### Automated Tests
+To run the automated tests manually:
+```bash
+source .venv/bin/activate
+python -m unittest discover tests
+```
+
+### Git Pre-commit Hook
+MacDictate is configured with a Git `pre-commit` hook that automatically runs all tests before every commit. This ensures that no broken code is committed to the repository.
+
+- **Hook Location**: `.git/hooks/pre-commit`
+- **Behavior**: If any test fails, the commit will be aborted.
+- **Bypassing (Not Recommended)**: If you need to commit without running tests, use `git commit -n` (no-verify).
+
+---
 *Developed with ❤️ for Mac users who hate typing.*

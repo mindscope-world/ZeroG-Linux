@@ -14,7 +14,7 @@ from . import gemini
 logger = logging.getLogger(__name__)
 
 # Constants
-MODEL_PATH = "mlx-community/whisper-base-mlx"
+MODEL_PATH = "mlx-community/distil-whisper-medium.en"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 
@@ -36,7 +36,13 @@ class AudioRecorder:
         try:
             # Warmup Whisper
             warmup_audio = np.zeros(16000, dtype=np.float32)
-            mlx_whisper.transcribe(warmup_audio, path_or_hf_repo=MODEL_PATH)
+            # Warmup with exact same params we use in production to ensure caches are built
+            mlx_whisper.transcribe(
+                warmup_audio, 
+                path_or_hf_repo=MODEL_PATH,
+                language="en",
+                initial_prompt="The user is dictating. Valid English text."
+            )
             logger.info("Whisper Warmup Complete.")
             
             # Warmup Gemini (uses the function we moved to macdictate.core.gemini)
@@ -125,7 +131,12 @@ class AudioRecorder:
             # We enforce a lock here to ensure MLX doesn't get confused if multiple threads existed roughly at once
             # (Though logic prevents it, this is safer)
             with self._lock:
-                result = mlx_whisper.transcribe(audio_np, path_or_hf_repo=MODEL_PATH)
+                result = mlx_whisper.transcribe(
+                    audio_np, 
+                    path_or_hf_repo=MODEL_PATH,
+                    language="en",
+                    initial_prompt="The user is dictating. Valid English text."
+                )
             
             whisper_duration = time.time() - start_t
             text = result["text"].strip()

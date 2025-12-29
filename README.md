@@ -17,7 +17,7 @@ MacDictate brings the power of **Apple Silicon optimized AI** to your fingertips
 - **🚀 Speed**: Leverages MLX for near-instant transcription on M-series chips.
 - **🔒 Privacy First**: By default, everything stays on your Mac. Audio is processed locally. (Optional Gemini editing uses the cloud).
 - **⌨️ Universal Hotkey**: Hold `Left Control` to talk in *any* application.
-- **🧠 Smart Formatting**: (Optional) Hold `Control + Q` to have Gemini clean up your grammar and formatting for Slack-style perfection.
+- **🧠 Smart Formatting**: (Optional) Hold `Control + Q` to have Gemini clean up your grammar and formatting.
 - **💎 Native UI**: Floating "Glass" HUD that stays out of your way and pulses when listening.
 
 ---

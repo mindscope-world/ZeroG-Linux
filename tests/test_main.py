@@ -26,12 +26,21 @@ class TestAudioRecorder(unittest.TestCase):
         self.assertIsInstance(self.recorder.audio_queue, queue.Queue)
 
     @patch('macdictate.core.recorder.sd.InputStream')
-    @patch('macdictate.core.recorder.subprocess.Popen')
-    def test_start_recording(self, mock_popen, mock_sd):
+    @patch('macdictate.core.recorder.Cocoa.NSSound')
+    def test_start_recording(self, mock_nssound, mock_sd):
+        # Mock sound object
+        mock_sound_instance = MagicMock()
+        mock_nssound.soundNamed_.return_value = mock_sound_instance
+        
         self.recorder.start_recording()
+        
         self.assertTrue(self.recorder.recording)
+        
+        # Verify sound played
+        mock_nssound.soundNamed_.assert_called_with("Pop")
+        mock_sound_instance.play.assert_called_once()
+        
         mock_sd.assert_called_once()
-        mock_popen.assert_called_once()
 
     @patch('macdictate.core.recorder.sd.InputStream')
     def test_stop_recording(self, mock_sd):

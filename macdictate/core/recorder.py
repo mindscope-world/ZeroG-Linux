@@ -1,3 +1,4 @@
+import Cocoa
 import time
 import queue
 import threading
@@ -55,7 +56,12 @@ class AudioRecorder:
             self.stop_recording(use_gemini)
 
     def play_sound(self):
-        subprocess.Popen(["afplay", SOUND_FILE])
+        sound = Cocoa.NSSound.soundNamed_("Pop")
+        if sound:
+            sound.play()
+        else:
+            # Fallback for systems where "Pop" might be named differently or file access issue
+            subprocess.Popen(["afplay", SOUND_FILE])
 
     def callback(self, indata, frames, time, status):
         if self.recording:

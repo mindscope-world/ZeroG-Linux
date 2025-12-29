@@ -24,6 +24,7 @@ class AudioRecorder:
         self.audio_queue = queue.Queue()
         self.stream = None
         self._lock = threading.Lock()
+        self.reset_timer = None # Timer to reset state from SUCCESS to IDLE
         
         # Subscribe to state changes
         state_machine.add_observer(self.on_state_change)
@@ -51,7 +52,7 @@ class AudioRecorder:
             pass
         except Exception as e:
             logger.error(f"Model initialization failed: {e}", exc_info=True)
-            state_machine.set_state(AppState.ERROR, error="Model Init Failed")
+            self._handle_error("Model Init Failed")
 
     def on_state_change(self, state, data):
         """Handle state transitions."""
@@ -74,6 +75,11 @@ class AudioRecorder:
             self.audio_queue.put(indata.copy())
 
     def start_recording(self):
+        # Cancel any pending reset timer (if we started recording while in SUCCESS state)
+        if self.reset_timer:
+            self.reset_timer.cancel()
+            self.reset_timer = None
+
         if self.recording: return
         logger.info("Starting Recording...")
         self.recording = True
@@ -85,7 +91,7 @@ class AudioRecorder:
             self.stream.start()
         except Exception as e:
             logger.error(f"Failed to start stream: {e}")
-            state_machine.set_state(AppState.ERROR, error="Mic Error")
+            self._handle_error("Mic Error")
 
     def stop_recording(self, use_gemini):
         if not self.recording: return
@@ -135,7 +141,9 @@ class AudioRecorder:
                     audio_np, 
                     path_or_hf_repo=MODEL_PATH,
                     language="en",
-                    initial_prompt="The user is dictating. Valid English text."
+                    initial_prompt="The user is dictating. Valid English text.",
+                    no_speech_threshold=0.6,
+                    logprob_threshold=None
                 )
             
             whisper_duration = time.time() - start_t
@@ -150,19 +158,32 @@ class AudioRecorder:
                 
                 self.inject_text(text)
                 state_machine.set_state(AppState.SUCCESS)
-                # Auto-reset to IDLE after a moment? 
-                # Or KeyMonitor will trigger IDLE? 
-                # Actually, State stays SUCCESS so UI can show checkmark.
-                # We need a Timer to reset to IDLE.
-                threading.Timer(2.0, lambda: state_machine.set_state(AppState.IDLE)).start()
+                
+                # Auto-reset to IDLE after a moment
+                # Store timer so we can cancel it if user starts recording again immediately
+                if self.reset_timer: 
+                    self.reset_timer.cancel()
+                self.reset_timer = threading.Timer(2.0, lambda: state_machine.set_state(AppState.IDLE))
+                self.reset_timer.start()
             else:
                 logger.info("Whisper returned empty text.")
                 state_machine.set_state(AppState.IDLE)
 
         except Exception as e:
             logger.error(f"Transcription Error: {e}", exc_info=True)
-            state_machine.set_state(AppState.ERROR, error="Processing Failed")
-            threading.Timer(3.0, lambda: state_machine.set_state(AppState.IDLE)).start()
+            self._handle_error("Processing Failed")
+
+    def _handle_error(self, message):
+        """Transition to ERROR state and schedule a reset to IDLE."""
+        state_machine.set_state(AppState.ERROR, error=message)
+        
+        # Cancel any existing reset timer
+        if self.reset_timer: 
+            self.reset_timer.cancel()
+            
+        # Schedule auto-dismiss (3 seconds)
+        self.reset_timer = threading.Timer(3.0, lambda: state_machine.set_state(AppState.IDLE))
+        self.reset_timer.start()
 
     def inject_text(self, text):
         pyperclip.copy(text)

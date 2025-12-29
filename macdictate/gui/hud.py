@@ -165,7 +165,7 @@ class HUDController(Cocoa.NSObject):
             elif state == AppState.SUCCESS:
                 msg = "Copied!"
             elif state == AppState.ERROR:
-                msg = "Error!"
+                msg = data.get('error', "Error!")
             
             self.view.setStatus_message_(state, msg)
             

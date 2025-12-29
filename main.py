@@ -2,6 +2,10 @@ import logging
 import os
 import macdictate.app
 from dotenv import load_dotenv
+import certifi
+
+# Fix for SSL: CERTIFICATE_VERIFY_FAILED on macOS
+os.environ["SSL_CERT_FILE"] = certifi.where()
 
 load_dotenv()
 

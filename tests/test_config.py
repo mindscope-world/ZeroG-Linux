@@ -1,13 +1,33 @@
 import unittest
-import main
+import os
+import importlib
+from unittest.mock import patch
 
 class TestConfig(unittest.TestCase):
-    def test_logging_disabled_by_default(self):
+    def test_logging_default_security(self):
         """
-        Ensure that logging is disabled by default for production builds.
-        This prevents accidental commits of debug logging enabled.
+        Verify that if DEBUG is not set in the environment,
+        logging is disabled by default. 
+        This ensures production/repo builds are silent/secure.
         """
-        self.assertFalse(main.ENABLE_LOGGING, "Logging should be disabled (ENABLE_LOGGING=False) for committed code.")
+        # We must prevent load_dotenv from reading the local .env file
+        # AND verify that without that file (or env var), it defaults to False.
+        with patch.dict(os.environ, clear=True):
+            # Also patch load_dotenv to do nothing
+            with patch('dotenv.load_dotenv'):
+                 if 'DEBUG' in os.environ:
+                     del os.environ['DEBUG']
+                 
+                 import main
+                 importlib.reload(main)
+                 
+                 self.assertFalse(main.ENABLE_LOGGING, "Logging must be disabled if DEBUG env var is missing.")
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_logging_enabled_with_env(self):
+        """
+        Verify logging turns on when DEBUG=True.
+        """
+        with patch.dict(os.environ, {'DEBUG': 'True'}):
+            import main
+            importlib.reload(main)
+            self.assertTrue(main.ENABLE_LOGGING)

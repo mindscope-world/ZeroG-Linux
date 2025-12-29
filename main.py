@@ -1,9 +1,13 @@
 import logging
 import os
 import macdictate.app
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configuration ---
-ENABLE_LOGGING = False
+# Logging is enabled ONLY if DEBUG=True in .env (local)
+ENABLE_LOGGING = os.getenv("DEBUG", "False").lower() in ("true", "1")
 
 def setup_logging():
     logger = logging.getLogger()

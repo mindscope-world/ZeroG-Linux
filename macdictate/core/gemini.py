@@ -21,9 +21,13 @@ if api_key:
     # If a key exists, configure the Google AI library
     genai.configure(api_key=api_key)
     
-    # Load the specific instructions for Gemini from 'gemini_prompt.txt'
-    # This file tells Gemini HOW to rewrite the text (e.g., "Make it friendly for Slack").
+    # Load the specific instructions for Gemini
+    # We look for the file in the same directory as this script (macdictate/core)
     prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_prompt.txt")
+    
+    # If not found there (e.g. frozen with different layout), check Resources? 
+    # For now, py2app data_files putting it in core/ should work with above.
+    
     try:
         with open(prompt_path, "r") as f:
             system_instruction = f.read().strip()

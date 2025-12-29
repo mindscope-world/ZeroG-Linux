@@ -3,51 +3,54 @@ from unittest.mock import MagicMock, patch
 import os
 import sys
 import queue
+import threading
 
 # Add the project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import main
+# Import from the new package structure
+from macdictate.core.recorder import AudioRecorder
 
-class TestMain(unittest.TestCase):
+class TestAudioRecorder(unittest.TestCase):
 
-    @patch('main.mlx_whisper')
-    @patch('main.sd.InputStream')
-    def setUp(self, mock_sd, mock_whisper):
-        # Mock the model warmup so it doesn't actually load during tests
-        # We need to mock mlx_whisper.transcribe inside the __init__
-        with patch('main.mlx_whisper.transcribe'):
-            self.recorder = main.AudioRecorder()
+    @patch('macdictate.core.recorder.mlx_whisper')
+    @patch('macdictate.core.recorder.sd.InputStream')
+    @patch('macdictate.core.recorder.threading.Thread') # Mock thread starting in __init__
+    def setUp(self, mock_thread, mock_sd, mock_whisper):
+        # We also need to mock state_machine to avoid side effects
+        with patch('macdictate.core.recorder.state_machine'):
+            self.recorder = AudioRecorder()
 
     def test_recorder_initial_state(self):
         self.assertFalse(self.recorder.recording)
         self.assertIsInstance(self.recorder.audio_queue, queue.Queue)
 
-    @patch('main.sd.InputStream')
-    @patch('main.subprocess.Popen')
+    @patch('macdictate.core.recorder.sd.InputStream')
+    @patch('macdictate.core.recorder.subprocess.Popen')
     def test_start_recording(self, mock_popen, mock_sd):
         self.recorder.start_recording()
         self.assertTrue(self.recorder.recording)
-        self.assertFalse(self.recorder.q_pressed_during_session)
         mock_sd.assert_called_once()
         mock_popen.assert_called_once()
 
-    @patch('main.sd.InputStream')
+    @patch('macdictate.core.recorder.sd.InputStream')
     def test_stop_recording(self, mock_sd):
         self.recorder.recording = True
-        self.recorder.stream = MagicMock()
+        mock_stream = MagicMock()
+        self.recorder.stream = mock_stream
         
-        with patch('main.threading.Thread') as mock_thread:
-            self.recorder.stop_recording()
+        with patch('macdictate.core.recorder.threading.Thread') as mock_thread:
+            self.recorder.stop_recording(use_gemini=False) # Updated signature
             self.assertFalse(self.recorder.recording)
-            self.recorder.stream.stop.assert_called_once()
-            self.recorder.stream.close.assert_called_once()
+            mock_stream.stop.assert_called_once()
+            mock_stream.close.assert_called_once()
             mock_thread.assert_called_once()
 
-    @patch('main.mlx_whisper.transcribe')
-    @patch('main.pyperclip.copy')
-    @patch('main.subprocess.run')
-    def test_transcribe_and_type_no_gemini(self, mock_run, mock_copy, mock_transcribe):
+    @patch('macdictate.core.recorder.mlx_whisper.transcribe')
+    @patch('macdictate.core.recorder.pyperclip.copy')
+    @patch('macdictate.core.recorder.subprocess.run')
+    @patch('macdictate.core.recorder.state_machine')
+    def test_transcribe_and_type_no_gemini(self, mock_state_machine, mock_run, mock_copy, mock_transcribe):
         # Mock transcription result
         mock_transcribe.return_value = {"text": "Hello world"}
         

@@ -5,3 +5,5 @@ pyperclip
 pyobjc-framework-Quartz
 google-generativeai
 python-dotenv
+pyobjc-framework-Cocoa
+py2app

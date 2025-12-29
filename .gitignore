@@ -57,6 +57,9 @@ yarn-error.log*
 .temp/
 tmp/
 temp/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Security and Credentials
 *.pem
@@ -68,5 +71,6 @@ temp/
 
 # Personal
 journal/
+
 
 

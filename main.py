@@ -3,7 +3,7 @@ import os
 import macdictate.app
 
 # --- Configuration ---
-ENABLE_LOGGING = True
+ENABLE_LOGGING = False
 
 def setup_logging():
     logger = logging.getLogger()

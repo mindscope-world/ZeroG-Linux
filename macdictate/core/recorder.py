@@ -152,15 +152,29 @@ class AudioRecorder:
                 self._handle_error("Mic Error")
 
     def stop_recording(self, use_gemini):
-        if not self.recording: return
+        with self._lock:
+            if not self.recording: 
+                return
+            self.recording = False
+            active_stream = self.stream
+            self.stream = None
+
         self._processing_start_time = time.time()  # Track when user released control
         logger.info(f"Stopping Recording. Gemini={use_gemini}")
         
-        self.recording = False
-        if self.stream:
-            self.stream.stop()
-            self.stream.close()
-            self.stream = None
+        # Define cleanup function for background thread
+        def _cleanup_stream(stream_to_close):
+            if stream_to_close:
+                try:
+                    # Blocking calls moved off main/event thread
+                    stream_to_close.stop()
+                    stream_to_close.close()
+                    logger.info("Audio stream stopped and closed in background.")
+                except Exception as e:
+                    logger.error(f"Error closing stream: {e}")
+
+        # Start cleanup in daemon thread
+        threading.Thread(target=_cleanup_stream, args=(active_stream,), daemon=True).start()
         
         threading.Thread(
             target=self.transcribe_and_type, 

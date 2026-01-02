@@ -55,10 +55,31 @@ class TestAudioRecorder(unittest.TestCase):
         
         with patch('macdictate.core.recorder.threading.Thread') as mock_thread:
             self.recorder.stop_recording(use_gemini=False)
+            
             self.assertFalse(self.recorder.recording)
+            self.assertIsNone(self.recorder.stream)
+            
+            # Should spawn 2 threads: one for cleanup, one for transcription
+            self.assertEqual(mock_thread.call_count, 2)
+            
+            # Find the cleanup thread (the one with the stream arg)
+            call_args_list = mock_thread.call_args_list
+            cleanup_call = None
+            for call in call_args_list:
+                args, kwargs = call
+                if 'args' in kwargs and len(kwargs['args']) > 0 and kwargs['args'][0] == mock_stream:
+                    cleanup_call = call
+                    break
+            
+            self.assertIsNotNone(cleanup_call, "Cleanup thread not spawned")
+            
+            # Manually run the cleanup target to verify it closes the stream
+            cleanup_target = cleanup_call[1]['target']
+            cleanup_args = cleanup_call[1]['args']
+            cleanup_target(*cleanup_args)
+            
             mock_stream.stop.assert_called_once()
             mock_stream.close.assert_called_once()
-            mock_thread.assert_called_once()
 
     @patch('macdictate.core.recorder.mlx_whisper.transcribe')
     @patch('macdictate.core.recorder.pyperclip.copy')

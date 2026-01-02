@@ -16,7 +16,7 @@ OPTIONS = {
         'CFBundleName': 'MacDictate',
         'CFBundleDisplayName': 'MacDictate',
         'CFBundleIdentifier': 'com.antony.macdictate',
-        'CFBundleVersion': '0.6.0',
+        'CFBundleVersion': '0.7.0',
     },
     'packages': ['macdictate', 'sounddevice', 'numpy', 'mlx_whisper', 'Quartz', 'google'],
     'includes': ['google.genai', 'certifi'],

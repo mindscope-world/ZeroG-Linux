@@ -92,6 +92,16 @@ python -m pytest --cov=macdictate tests/
 
 ## 📅 Change Log
 
+### [v0.7.0] - 2026-01-02
+- **"Liquid Orbit" HUD**: Complete visual overhaul using a modern web-based rendering engine.
+    - **Audio Visualization**: Real-time, thread-safe audio glow that pulses organically with your voice.
+    - **Smooth Animations**: "Attack/Release" smoothing (120ms/600ms) for a premium, liquid feel.
+    - **States**: Distinct visual identities for Recording (Cyan), Processing (Indigo), Success (Green), and Error (Red).
+- **Manual Controls**: Added a clickable **Stop (■)** button to the HUD for handling long or stuck recordings.
+- **Robustness**: 
+    - Fixed threading issues that previously caused UI freezes.
+    - Implemented a robust JS-to-Python bridge for reliable state management.
+
 ### [v0.6.0] - 2026-01-02
 - **Performance Optimization**: Significant reduction in recording latency via audio stream and sound effect warmups.
 - **Visual Enhancements**:

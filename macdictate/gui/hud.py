@@ -149,7 +149,7 @@ HTML_CONTENT = r"""
             glow.style.transition = `all ${duration} ease-out`;
 
             const BASE_SIZE = 0;
-            const MAX_EXTRA = 35; // Increased slightly from 25
+            const MAX_EXTRA = 60; // Restored to strong glow (was 25/35)
             const size = BASE_SIZE + (intensity * MAX_EXTRA);
             const opacity = 0.3 + (intensity * 0.7); 
             
@@ -251,8 +251,8 @@ class HUDController(Cocoa.NSObject):
         self = objc.super(HUDController, self).init()
         if self:
             # Window dimensions
-            self.hudWidth = 350 # Increased to accommodate horizontal shadow
-            self.hudHeight = 200 # Increased to avoid clipping shadow
+            self.hudWidth = 525 # Increased +50% to 525 (was 350)
+            self.hudHeight = 300 # Increased +50% to 300 (was 200)
             
             rect = Cocoa.NSMakeRect(0, 0, self.hudWidth, self.hudHeight)
             

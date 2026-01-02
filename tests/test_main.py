@@ -78,6 +78,27 @@ class TestAudioRecorder(unittest.TestCase):
         mock_quartz.CGEventCreateKeyboardEvent.assert_called()
         mock_quartz.CGEventPost.assert_called()
 
+    @patch('macdictate.core.recorder.state_machine')
+    def test_recorder_callback(self, mock_state_machine):
+        # Create a dummy audio buffer (numpy array)
+        import numpy as np
+        indata = np.full((1024, 1), 0.1, dtype=np.float32)
+        frames = 1024
+        time_info = {}
+        status = None
+        
+        # Must be recording to process audio
+        self.recorder.recording = True
+        
+        self.recorder.callback(indata, frames, time_info, status)
+        
+        # Verify queue put
+        self.assertFalse(self.recorder.audio_queue.empty())
+        
+        # Verify broadcast
+        # RMS of 0.1 is 0.1. Level = min(1.0, 0.1 * 10) = 1.0
+        mock_state_machine.broadcast_audio_level.assert_called_with(1.0)
+
 if __name__ == '__main__':
     unittest.main()
 

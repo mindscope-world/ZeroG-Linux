@@ -188,6 +188,9 @@ class HUDView(WebKit.WKWebView):
             
         return self
 
+    def acceptsFirstMouse_(self, event):
+        return True
+
     def webView_decidePolicyForNavigationAction_decisionHandler_(self, webView, navigationAction, decisionHandler):
         """Intercept app:// custom schemes."""
         url = navigationAction.request().URL().absoluteString()
@@ -266,7 +269,8 @@ class HUDController(Cocoa.NSObject):
             self.window.setBackgroundColor_(Cocoa.NSColor.clearColor())
             self.window.setOpaque_(False)
             self.window.setHasShadow_(False)
-            self.window.setIgnoresMouseEvents_(True)
+            # Enable mouse events so the stop button works
+            self.window.setIgnoresMouseEvents_(False) 
             self.window.setFloatingPanel_(True)
             self.window.setHidesOnDeactivate_(False)
             self.window.setCanHide_(False)

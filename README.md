@@ -51,6 +51,31 @@ You will see a microphone icon in your Menu Bar.
 - **Talk**: Hold `Left Control`. The HUD will appear. Speak. Release to transcribe.
 - **Talk + Polish**: Hold `Left Control + Q`. Speak. Release.
 
+### 4. Create an Automator App
+To run MacDictate as a standalone app without opening a terminal:
+
+1. Open **Automator** and create a new **Application**.
+2. Add a **Run Shell Script** action.
+3. Paste the following code (update `PROJECT_DIR` if you moved the folder):
+
+```bash
+# Path to your MacDictate project
+PROJECT_DIR="/Users/antony/Documents/Projects/MacDictate"
+
+# 1. Stop any existing instance
+pkill -f "main.py" || true
+sleep 0.5
+
+# 2. Go to directory
+cd "$PROJECT_DIR"
+
+# 3. Launch quietly in background
+nohup ./.venv/bin/python main.py >/dev/null 2>&1 &
+```
+
+4. Save the app as **MacDictate**.
+5. (Optional) Add it to **System Settings > General > Login Items** to start on boot.
+
 ---
 
 ## ⚙️ Configuration
@@ -68,6 +93,27 @@ To enable logging (for development):
 To use the "Smart Formatting" feature:
 1. Get a Key from [Google AI Studio](https://aistudio.google.com/).
 2. Add to `.env`: `GOOGLE_API_KEY=your_key_here`
+
+---
+
+## ❓ Troubleshooting
+
+### Permissions Issues
+If the app runs but doesn't paste text or listen:
+
+1. **Accessibility (Text Pasting fails)**
+   - Go to **System Settings > Privacy & Security > Accessibility**.
+   - If `MacDictate` (or your terminal/Python) is listed, select it and click the **minus (-)** button to remove it.
+   - Run the app again. macOS will prompt you to re-add it.
+   - *Why?* Sometimes macOS updates invalidate old permission entries.
+
+2. **Microphone (No audio)**
+   - Go to **System Settings > Privacy & Security > Microphone**.
+   - Remove `MacDictate` (or Terminal/Python) and restart the app to re-trigger the permission prompt.
+
+3. **System Events (Automation)**
+   - This control is located in **System Settings > Privacy & Security > Automation**.
+   - Ensure `MacDictate` has access to `System Events`.
 
 ---
 

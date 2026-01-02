@@ -30,6 +30,7 @@ vendor/
 venv/
 .venv/
 env/
+mlx_models/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/

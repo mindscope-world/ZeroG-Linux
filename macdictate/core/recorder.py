@@ -1,20 +1,23 @@
-import Cocoa
-import time
-import queue
-import threading
-import subprocess
 import numpy as np
 import sounddevice as sd
 import pyperclip
 import mlx_whisper
 import logging
+import os
+from pathlib import Path
+import Cocoa
+import Quartz
+import time
+import queue
+import threading
+import subprocess
 from .state import state_machine, AppState
 from . import gemini
 
 logger = logging.getLogger(__name__)
 
-# Constants
-MODEL_PATH = "mlx-community/distil-whisper-medium.en"
+# Constants - 4-bit quantized whisper-medium for faster speed
+MODEL_PATH = "mlx-community/whisper-medium-mlx-4bit"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 
@@ -24,38 +27,74 @@ class AudioRecorder:
         self.audio_queue = queue.Queue()
         self.stream = None
         self._lock = threading.Lock()
-        self.reset_timer = None # Timer to reset state from SUCCESS to IDLE
+        self.reset_timer = None
+        self._model_dir = None  # Cached resolved model path
+        self._preloaded_sound = None  # Pre-loaded sound effect
+        self._processing_start_time = None  # For latency tracking
         
-        # Subscribe to state changes
         state_machine.add_observer(self.on_state_change)
+        threading.Thread(target=self._initialize_all, daemon=True).start()
+
+    def _warmup_audio_subsystem(self):
+        """Pre-initialize audio input to eliminate cold-start delay."""
+        try:
+            # Create a short-lived stream to warm up sounddevice/CoreAudio
+            warmup_stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1)
+            warmup_stream.start()
+            time.sleep(0.1)  # Brief activation to fully initialize
+            warmup_stream.stop()
+            warmup_stream.close()
+            logger.info("Audio subsystem warmup complete.")
+        except Exception as e:
+            logger.warning(f"Audio warmup failed: {e}")
         
-        # Start initialization in background to not block app start
-        threading.Thread(target=self._initialize_models, daemon=True).start()
+        # Pre-load the sound effect (must run on main thread for Cocoa)
+        try:
+            self._preloaded_sound = Cocoa.NSSound.soundNamed_("Pop")
+            if self._preloaded_sound:
+                logger.info("Sound effect pre-loaded.")
+        except Exception as e:
+            logger.warning(f"Sound preload failed: {e}")
+
+    def _initialize_all(self):
+        """Initialize audio subsystem and models in background."""
+        # Warmup audio first (faster, unblocks recording quickly)
+        self._warmup_audio_subsystem()
+        # Then load the Whisper model
+        self._initialize_models()
 
     def _initialize_models(self):
         logger.info(f"Loading MLX Whisper Model ({MODEL_PATH})...")
         try:
-            # Warmup Whisper
+            from huggingface_hub import snapshot_download
+            model_dir = Path(snapshot_download(MODEL_PATH))
+            self._model_dir = str(model_dir)  # Cache for reuse
+            
+            weights_path = model_dir / "weights.safetensors"
+            model_path_file = model_dir / "model.safetensors"
+            
+            if not weights_path.exists() and model_path_file.exists():
+                logger.info("Creating symlink for mlx_whisper compatibility")
+                try:
+                    os.symlink(model_path_file, weights_path)
+                except FileExistsError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to create symlink: {e}")
+
             warmup_audio = np.zeros(16000, dtype=np.float32)
-            # Warmup with exact same params we use in production to ensure caches are built
             mlx_whisper.transcribe(
                 warmup_audio, 
-                path_or_hf_repo=MODEL_PATH,
+                path_or_hf_repo=self._model_dir,
                 language="en",
                 initial_prompt="The user is dictating. Valid English text."
             )
             logger.info("Whisper Warmup Complete.")
-            
-            # Warmup Gemini (uses the function we moved to macdictate.core.gemini)
-            # We need to expose warmup in gemini.py or just call process_text with dummy?
-            # Existing gemini.py runs warmup on import/init.
-            pass
         except Exception as e:
             logger.error(f"Model initialization failed: {e}", exc_info=True)
             self._handle_error("Model Init Failed")
 
     def on_state_change(self, state, data):
-        """Handle state transitions."""
         if state == AppState.RECORDING:
             self.start_recording()
         elif state == AppState.PROCESSING:
@@ -63,38 +102,51 @@ class AudioRecorder:
             self.stop_recording(use_gemini)
 
     def play_sound(self):
-        sound = Cocoa.NSSound.soundNamed_("Pop")
+        # Use pre-loaded sound for instant playback, fallback to loading fresh
+        sound = self._preloaded_sound or Cocoa.NSSound.soundNamed_("Pop")
         if sound:
             sound.play()
         else:
-            # Fallback for systems where "Pop" might be named differently or file access issue
             subprocess.Popen(["afplay", SOUND_FILE])
 
     def callback(self, indata, frames, time, status):
         if self.recording:
             self.audio_queue.put(indata.copy())
+            # Calculate RMS level for waveform visualization (0.0 - 1.0)
+            rms = np.sqrt(np.mean(indata**2))
+            # Normalize to 0-1 range (typical speech RMS is 0.01-0.1)
+            level = min(1.0, rms * 10)
+            # Broadcast audio level to HUD via state machine
+            state_machine.broadcast_audio_level(level)
 
     def start_recording(self):
-        # Cancel any pending reset timer (if we started recording while in SUCCESS state)
         if self.reset_timer:
             self.reset_timer.cancel()
             self.reset_timer = None
 
-        if self.recording: return
-        logger.info("Starting Recording...")
-        self.recording = True
-        self.audio_queue = queue.Queue()
-        self.play_sound()
-        
-        try:
-            self.stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, callback=self.callback)
-            self.stream.start()
-        except Exception as e:
-            logger.error(f"Failed to start stream: {e}")
-            self._handle_error("Mic Error")
+        with self._lock:
+            if self.recording: 
+                return
+            if state_machine.current_state != AppState.RECORDING:
+                logger.warning("State changed before recording could start, aborting")
+                return
+                
+            logger.info("Starting Recording...")
+            self.recording = True
+            self.audio_queue = queue.Queue()
+            self.play_sound()
+            
+            try:
+                self.stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, callback=self.callback)
+                self.stream.start()
+            except Exception as e:
+                logger.error(f"Failed to start stream: {e}")
+                self.recording = False
+                self._handle_error("Mic Error")
 
     def stop_recording(self, use_gemini):
         if not self.recording: return
+        self._processing_start_time = time.time()  # Track when user released control
         logger.info(f"Stopping Recording. Gemini={use_gemini}")
         
         self.recording = False
@@ -103,7 +155,6 @@ class AudioRecorder:
             self.stream.close()
             self.stream = None
         
-        # Offload processing to specific worker thread
         threading.Thread(
             target=self.transcribe_and_type, 
             args=(use_gemini,), 
@@ -118,32 +169,32 @@ class AudioRecorder:
                 state_machine.set_state(AppState.IDLE)
                 return
 
+            # Optimized batch drain - collect all chunks at once
+            collect_start = time.time()
             audio_data = []
-            while not self.audio_queue.empty():
+            while True:
                 try:
                     audio_data.append(self.audio_queue.get_nowait())
                 except queue.Empty:
                     break
             
-            logger.info(f"Collected {len(audio_data)} audio chunks.")
             if not audio_data:
                 state_machine.set_state(AppState.IDLE)
                 return
 
-            audio_np = np.concatenate(audio_data, axis=0).flatten()
-            logger.info(f"Audio array shape: {audio_np.shape}. Starting Whisper...")
+            # Efficient array creation using vstack (faster than concatenate for many small arrays)
+            audio_np = np.vstack(audio_data).flatten()
+            collect_duration = time.time() - collect_start
+            logger.info(f"Collected {len(audio_data)} chunks in {collect_duration*1000:.1f}ms. Shape: {audio_np.shape}")
             
             start_t = time.time()
-            # We enforce a lock here to ensure MLX doesn't get confused if multiple threads existed roughly at once
-            # (Though logic prevents it, this is safer)
             with self._lock:
+                model_path = self._model_dir if self._model_dir else MODEL_PATH
                 result = mlx_whisper.transcribe(
                     audio_np, 
-                    path_or_hf_repo=MODEL_PATH,
+                    path_or_hf_repo=model_path,
                     language="en",
-                    initial_prompt="The user is dictating. Valid English text.",
-                    no_speech_threshold=0.6,
-                    logprob_threshold=None
+                    initial_prompt="The user is dictating. Valid English text."
                 )
             
             whisper_duration = time.time() - start_t
@@ -156,11 +207,19 @@ class AudioRecorder:
                    text = gemini.process_text(text)
                    logger.info("Gemini finished.")
                 
+                # Inject text FIRST (before UI update) to minimize perceived latency
+                inject_start = time.time()
                 self.inject_text(text)
+                inject_duration = time.time() - inject_start
+                if self._processing_start_time:
+                    total_latency = time.time() - self._processing_start_time
+                    logger.info(f"Text injected in {inject_duration*1000:.1f}ms (total {total_latency*1000:.0f}ms from key release)")
+                else:
+                    logger.info(f"Text injected in {inject_duration*1000:.1f}ms")
+                
+                # Then update UI (non-blocking)
                 state_machine.set_state(AppState.SUCCESS)
                 
-                # Auto-reset to IDLE after a moment
-                # Store timer so we can cancel it if user starts recording again immediately
                 if self.reset_timer: 
                     self.reset_timer.cancel()
                 self.reset_timer = threading.Timer(2.0, lambda: state_machine.set_state(AppState.IDLE))
@@ -174,18 +233,33 @@ class AudioRecorder:
             self._handle_error("Processing Failed")
 
     def _handle_error(self, message):
-        """Transition to ERROR state and schedule a reset to IDLE."""
         state_machine.set_state(AppState.ERROR, error=message)
         
-        # Cancel any existing reset timer
         if self.reset_timer: 
             self.reset_timer.cancel()
             
-        # Schedule auto-dismiss (3 seconds)
         self.reset_timer = threading.Timer(3.0, lambda: state_machine.set_state(AppState.IDLE))
         self.reset_timer.start()
 
     def inject_text(self, text):
         pyperclip.copy(text)
-        time.sleep(0.05)
-        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])
+        time.sleep(0.01)  # Reduced from 50ms - just need minimal clipboard sync time
+        
+        try:
+            cmd_down = Quartz.CGEventCreateKeyboardEvent(None, 0x37, True)
+            Quartz.CGEventSetFlags(cmd_down, Quartz.kCGEventFlagMaskCommand)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_down)
+            
+            v_down = Quartz.CGEventCreateKeyboardEvent(None, 0x09, True)
+            Quartz.CGEventSetFlags(v_down, Quartz.kCGEventFlagMaskCommand)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_down)
+            
+            v_up = Quartz.CGEventCreateKeyboardEvent(None, 0x09, False)
+            Quartz.CGEventSetFlags(v_up, Quartz.kCGEventFlagMaskCommand)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_up)
+
+            cmd_up = Quartz.CGEventCreateKeyboardEvent(None, 0x37, False)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_up)
+            
+        except Exception:
+            subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])

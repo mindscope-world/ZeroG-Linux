@@ -92,6 +92,17 @@ python -m pytest --cov=macdictate tests/
 
 ## 📅 Change Log
 
+### [v0.6.0] - 2026-01-02
+- **Performance Optimization**: Significant reduction in recording latency via audio stream and sound effect warmups.
+- **Visual Enhancements**:
+    - New **Waveform Visualization** in the HUD during recording.
+    - Improved **Heads-Up Display** with slide animations and repositioned layout.
+- **Reliability & Accuracy**:
+    - Migrated to `google.genai` for more robust cloud-powered editing.
+    - Optimized transcription pipeline for faster turnaround on short phrases.
+    - Added extensive logging and diagnostic tools for performance monitoring.
+- **Developer Experience**: Improved test coverage for state machine and audio broadcasting logic.
+
 ### [v0.5.0] - 2025-12-29
 - **Major Architecture Overhaul**: Refactored into a modular package (`macdictate`) with Native App structure.
 - **New UI**: Replaced basic transparent window with a **Native Glass HUD** using `NSVisualEffectView`.

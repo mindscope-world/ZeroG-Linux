@@ -10,16 +10,18 @@ from macdictate.core import gemini
 
 class TestGeminiProcessor(unittest.TestCase):
 
-    @patch('macdictate.core.gemini.model')
-    def test_process_text_success(self, mock_model):
+    @patch('macdictate.core.gemini.client')
+    def test_process_text_success(self, mock_client):
         # Mock successful response
         mock_response = MagicMock()
         mock_response.text = "Polished text"
-        mock_model.generate_content.return_value = mock_response
+        mock_client.models.generate_content.return_value = mock_response
         
         result = gemini.process_text("Raw text")
         self.assertEqual(result, "Polished text")
-        mock_model.generate_content.assert_called_once_with("Text: Raw text")
+        # Check call args - the new SDK uses model and contents
+        args, kwargs = mock_client.models.generate_content.call_args
+        self.assertEqual(kwargs['contents'], "Text: Raw text")
 
     def test_process_text_empty_input(self):
         result = gemini.process_text("")
@@ -28,17 +30,16 @@ class TestGeminiProcessor(unittest.TestCase):
         result = gemini.process_text("   ")
         self.assertEqual(result, "   ")
 
-    def test_process_text_no_model(self):
-        # Test when model is None
-        # Use patch.object because 'gemini' is now a module object
-        with patch.object(gemini, 'model', None):
+    def test_process_text_no_client(self):
+        # Test when client is None
+        with patch.object(gemini, 'client', None):
             result = gemini.process_text("Raw text")
             self.assertEqual(result, "Raw text")
 
-    @patch('macdictate.core.gemini.model')
-    def test_process_text_exception(self, mock_model):
+    @patch('macdictate.core.gemini.client')
+    def test_process_text_exception(self, mock_client):
         # Mock exception during API call
-        mock_model.generate_content.side_effect = Exception("API Error")
+        mock_client.models.generate_content.side_effect = Exception("API Error")
         
         result = gemini.process_text("Raw text")
         self.assertEqual(result, "Raw text")

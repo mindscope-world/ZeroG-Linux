@@ -44,3 +44,31 @@ class TestStateMachine(unittest.TestCase):
         
         self.sm.set_state(AppState.IDLE, error="Test") # Same state, new data
         observer.assert_called_once_with(AppState.IDLE, {'error': "Test"})
+
+    def test_audio_level_observer_registration(self):
+        observer = MagicMock()
+        self.sm.add_audio_level_observer(observer)
+        
+        self.sm.broadcast_audio_level(0.5)
+        
+        observer.assert_called_once_with(0.5)
+
+    def test_audio_level_observer_removal(self):
+        observer = MagicMock()
+        self.sm.add_audio_level_observer(observer)
+        self.sm.remove_audio_level_observer(observer)
+        
+        self.sm.broadcast_audio_level(0.5)
+        
+        observer.assert_not_called()
+
+    def test_audio_level_multiple_observers(self):
+        observer1 = MagicMock()
+        observer2 = MagicMock()
+        self.sm.add_audio_level_observer(observer1)
+        self.sm.add_audio_level_observer(observer2)
+        
+        self.sm.broadcast_audio_level(0.75)
+        
+        observer1.assert_called_once_with(0.75)
+        observer2.assert_called_once_with(0.75)

@@ -1,12 +1,13 @@
 from setuptools import setup
+import sys
+
+# Fix for RecursionError in py2app modulegraph
+sys.setrecursionlimit(5000)
 
 APP = ['main.py']
 DATA_FILES = [
-    'macdictate/core',
-    'macdictate/gui',
     '.env',
-    'gemini_prompt.txt',
-    'mac_dictate.log'
+    'macdictate/core/gemini_prompt.txt',
 ]
 OPTIONS = {
     'argv_emulation': True,
@@ -15,10 +16,10 @@ OPTIONS = {
         'CFBundleName': 'MacDictate',
         'CFBundleDisplayName': 'MacDictate',
         'CFBundleIdentifier': 'com.antony.macdictate',
-        'CFBundleVersion': '0.1.0',
-        'CFBundleShortVersionString': '0.1.0',
+        'CFBundleVersion': '0.6.0',
     },
-    'packages': ['macdictate', 'sounddevice', 'numpy', 'mlx_whisper', 'google.generativeai'],
+    'packages': ['macdictate', 'sounddevice', 'numpy', 'mlx_whisper', 'Quartz', 'google'],
+    'includes': ['google.genai', 'certifi'],
 }
 
 setup(

@@ -29,6 +29,7 @@ class StateMachine:
     def _init(self):
         self._state = AppState.IDLE
         self._observers = []
+        self._audio_level_observers = []  # Separate observers for audio levels
         self._state_lock = threading.Lock()
         self._data = {} # Optional payload for state (e.g., error message)
 
@@ -65,11 +66,41 @@ class StateMachine:
             logger.info(f"State Transition: {new_state.name} | Data: {kwargs}")
             
             # Notify observers
-            for observer in self._observers:
-                try:
-                    observer(new_state, kwargs)
-                except Exception as e:
-                    logger.error(f"Error in observer {observer}: {e}")
+            observers_copy = list(self._observers)  # Copy to avoid modification during iteration
+        
+        # Notify outside the lock to prevent deadlocks
+        for observer in observers_copy:
+            try:
+                observer(new_state, kwargs)
+            except Exception as e:
+                logger.error(f"Error in observer {observer}: {e}", exc_info=True)
+                # If critical observer fails during RECORDING, trigger ERROR state
+                if new_state == AppState.RECORDING:
+                    # Schedule error state to avoid recursion
+                    import threading
+                    threading.Timer(0.1, lambda: self.set_state(AppState.ERROR, error="Recording failed to start")).start()
+
+    def add_audio_level_observer(self, observer_func):
+        """Register a callback for audio level updates. Signature: observer_func(level: float)"""
+        with self._state_lock:
+            if observer_func not in self._audio_level_observers:
+                self._audio_level_observers.append(observer_func)
+
+    def remove_audio_level_observer(self, observer_func):
+        with self._state_lock:
+            if observer_func in self._audio_level_observers:
+                self._audio_level_observers.remove(observer_func)
+
+    def broadcast_audio_level(self, level: float):
+        """Broadcast audio level (0.0-1.0) to all audio level observers."""
+        with self._state_lock:
+            observers_copy = list(self._audio_level_observers)
+        
+        for observer in observers_copy:
+            try:
+                observer(level)
+            except Exception:
+                pass  # Silently ignore audio level observer errors
 
 # Global instance accessor
 state_machine = StateMachine()

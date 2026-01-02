@@ -7,3 +7,4 @@ google-genai
 python-dotenv
 pyobjc-framework-Cocoa
 py2app
+pyobjc-framework-WebKit

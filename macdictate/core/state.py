@@ -93,14 +93,19 @@ class StateMachine:
 
     def broadcast_audio_level(self, level: float):
         """Broadcast audio level (0.0-1.0) to all audio level observers."""
+        # logger.debug(f"Broadcasting audio level: {level:.4f} to {len(self._audio_level_observers)} observers")
+        if level > 0.01:
+             # Only log significant levels to avoid spam
+             pass 
+
         with self._state_lock:
             observers_copy = list(self._audio_level_observers)
         
         for observer in observers_copy:
             try:
                 observer(level)
-            except Exception:
-                pass  # Silently ignore audio level observer errors
+            except Exception as e:
+                logger.error(f"Error in audio level observer {observer}: {e}")
 
 # Global instance accessor
 state_machine = StateMachine()

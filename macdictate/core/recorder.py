@@ -114,8 +114,13 @@ class AudioRecorder:
             self.audio_queue.put(indata.copy())
             # Calculate RMS level for waveform visualization (0.0 - 1.0)
             rms = np.sqrt(np.mean(indata**2))
+            
+            # DEBUG: Verify we have signal
+            # import sys
+            # if rms > 0.01: sys.stderr.write(f"RMS: {rms:.4f}\n")
+
             # Normalize to 0-1 range (typical speech RMS is 0.01-0.1)
-            level = min(1.0, rms * 10)
+            level = float(min(1.0, rms * 10))
             # Broadcast audio level to HUD via state machine
             state_machine.broadcast_audio_level(level)
 
@@ -138,9 +143,11 @@ class AudioRecorder:
             
             try:
                 self.stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, callback=self.callback)
+                logger.info("Initializing audio stream...")
                 self.stream.start()
+                logger.info("Audio stream started successfully.")
             except Exception as e:
-                logger.error(f"Failed to start stream: {e}")
+                logger.error(f"Failed to start stream: {e}", exc_info=True)
                 self.recording = False
                 self._handle_error("Mic Error")
 

@@ -1,310 +1,249 @@
 import Cocoa
 import objc
 import Quartz
-import math
+import WebKit
+import logging
 from PyObjCTools import AppHelper
 from macdictate.core.state import state_machine, AppState
 
+logger = logging.getLogger(__name__)
 
-# SF Symbol names for each state
-STATE_ICONS = {
-    AppState.IDLE: "circle",
-    AppState.RECORDING: "mic.fill",
-    AppState.PROCESSING: "sparkles",
-    AppState.SUCCESS: "checkmark.circle.fill",
-    AppState.ERROR: "exclamationmark.triangle.fill",
-}
+HTML_CONTENT = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @keyframes spin-slow { to { transform: rotate(360deg); } }
+        @keyframes spin-fast { to { transform: rotate(360deg); } }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+            20%, 40%, 60%, 80% { transform: translateX(2px); }
+        }
+        .orbit-ring { animation: spin-slow 3s linear infinite; }
+        .processing-ring { animation: spin-fast 1s linear infinite; }
+        .shake-anim { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        #recorder-interface { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        body { background: transparent !important; margin: 0; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; width: 100vw; }
+    </style>
+</head>
+<body class="font-['Inter']">
+    <div id="recorder-interface" class="w-[210px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative border border-slate-800 select-none overflow-hidden transition-all duration-75">
+    </div>
 
-# State-specific background tint colors (very subtle)
-STATE_TINTS = {
-    AppState.IDLE: (0.1, 0.1, 0.12),        # Neutral dark
-    AppState.RECORDING: (0.15, 0.08, 0.08),  # Subtle red warmth
-    AppState.PROCESSING: (0.08, 0.1, 0.15),  # Subtle blue tint
-    AppState.SUCCESS: (0.08, 0.14, 0.10),    # Subtle green tint
-    AppState.ERROR: (0.15, 0.08, 0.08),      # Subtle red warmth
-}
+    <script>
+        const container = document.getElementById('recorder-interface');
+        let currentState = 'recording';
+        const states = {
+            recording: {
+                shadow: 'shadow-none', // removed container shadow
+                border: 'border-slate-800',
+                html: `
+                    <!-- Dedicated Glow Element -->
+                    <div id="glow-ring" class="absolute inset-0 rounded-full transition-all duration-75 ease-out opacity-0 pointer-events-none" style="z-index: -1; box-shadow: 0 0 20px rgba(14,165,233,0.5);"></div>
+                    
+                    <div class="w-10 h-10 rounded-full relative flex items-center justify-center flex-shrink-0 z-10">
+                        <div class="absolute inset-0 rounded-full border border-sky-500/30"></div>
+                        <div class="absolute inset-0 rounded-full border-t-2 border-r-2 border-transparent border-t-cyan-400 border-r-teal-400 orbit-ring"></div>
+                        <svg class="w-4 h-4 text-cyan-200" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                    </div>
+                    <div class="flex flex-col items-start justify-center leading-none ml-2 z-10">
+                        <span class="text-[9px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Recording</span>
+                        <span id="label-text" class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-300">Listening...</span>
+                    </div>
+                    
+                    <!-- Manual Stop Button -->
+                    <button onclick="window.location.href='app://stopRecording'" class="ml-auto mr-1 p-2 rounded-full hover:bg-slate-700/50 text-slate-500 hover:text-rose-400 transition-colors z-20 group">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                        </svg>
+                    </button>
+                `
+            },
+            processing: {
+                shadow: 'shadow-[0_0_25px_rgba(99,102,241,0.4)]',
+                border: 'border-indigo-500/30',
+                html: `
+                    <div class="w-10 h-10 rounded-full relative flex items-center justify-center flex-shrink-0">
+                         <div class="absolute inset-0 rounded-full border border-indigo-500/20"></div>
+                         <div class="absolute inset-0 rounded-full border-2 border-transparent border-l-indigo-400 border-r-purple-400 processing-ring"></div>
+                         <svg class="w-4 h-4 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                         </svg>
+                    </div>
+                    <div class="flex flex-col items-start justify-center leading-none ml-2">
+                        <span class="text-[9px] text-indigo-300/70 font-medium uppercase tracking-wider mb-0.5">Whisper AI</span>
+                        <span id="label-text" class="text-sm font-bold text-white animate-pulse">Processing...</span>
+                    </div>
+                `
+            },
+            success: {
+                shadow: 'shadow-[0_0_20px_rgba(16,185,129,0.4)]',
+                border: 'border-emerald-500/30',
+                html: `
+                    <div class="w-10 h-10 rounded-full relative flex items-center justify-center bg-emerald-500/10 flex-shrink-0">
+                         <div class="absolute inset-0 rounded-full border border-emerald-500/50 scale-100 animate-[ping_1s_cubic-bezier(0,0,0.2,1)_1]"></div>
+                         <svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                         </svg>
+                    </div>
+                    <div class="flex flex-col items-start justify-center leading-none ml-2">
+                        <span id="label-text" class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-green-300">Success</span>
+                    </div>
+                `
+            },
+            error: {
+                shadow: 'shadow-[0_0_20px_rgba(244,63,94,0.4)]',
+                border: 'border-rose-500/30',
+                html: `
+                    <div class="w-10 h-10 rounded-full relative flex items-center justify-center bg-rose-500/10 flex-shrink-0">
+                         <svg class="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                         </svg>
+                    </div>
+                    <div class="flex flex-col items-start justify-center leading-none ml-2">
+                        <span class="text-[9px] text-rose-400/70 font-medium uppercase tracking-wider mb-0.5">Error</span>
+                        <span id="label-text" class="text-sm font-bold text-rose-200">Failed</span>
+                    </div>
+                `
+            }
+        };
 
+        window.setState = function(stateName, message) {
+            const config = states[stateName];
+            if (!config) return;
+            
+            currentState = stateName;
+            // Increased width to 240px to accommodate stop button
+            container.className = `w-[240px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative transition-all duration-75 select-none overflow-visible ${config.shadow} ${config.border}`;
+            
+            if (stateName === 'error') {
+                container.classList.add('shake-anim');
+                setTimeout(() => container.classList.remove('shake-anim'), 400);
+            }
 
-class WaveformView(Cocoa.NSView):
-    """Animated waveform visualization with vertical bars."""
-    
+            container.innerHTML = config.html;
+            if (message) {
+                const label = document.getElementById('label-text');
+                if (label) label.innerText = message;
+            }
+        };
+
+        let lastIntensity = 0;
+        window.applyShadow = function(intensity) {
+            // console.log("JS applyShadow:", intensity);
+            if (currentState !== 'recording') return;
+            
+            const glow = document.getElementById('glow-ring');
+            if (!glow) return;
+
+            // Attack/Release Smoothing
+            // If getting louder (Attack), use 120ms (smoother start). If quieter (Release), use 600ms (gentle fade).
+            const isAttack = intensity > lastIntensity;
+            const duration = isAttack ? '120ms' : '600ms'; 
+            
+            glow.style.transition = `all ${duration} ease-out`;
+
+            const BASE_SIZE = 0;
+            const MAX_EXTRA = 35; // Increased slightly from 25
+            const size = BASE_SIZE + (intensity * MAX_EXTRA);
+            const opacity = 0.3 + (intensity * 0.7); 
+            
+            glow.style.boxShadow = `0 0 ${20 + size}px ${5 + (size/2)}px rgba(14, 165, 233, ${opacity})`;
+            glow.style.opacity = opacity;
+            
+            lastIntensity = intensity;
+        };
+
+        // Ready signal
+        console.log("JS Ready");
+        window.setState('recording', 'Ready');
+    </script>
+</body>
+</html>
+"""
+
+class HUDView(WebKit.WKWebView):
     def initWithFrame_(self, frame):
-        self = objc.super(WaveformView, self).initWithFrame_(frame)
+        config = WebKit.WKWebViewConfiguration.alloc().init()
+        
+        self = objc.super(HUDView, self).initWithFrame_configuration_(frame, config)
         if self:
             self.setWantsLayer_(True)
-            self.layer().setMasksToBounds_(False)
+            # Make webview transparent
+            self.setValue_forKey_(False, "drawsBackground")
+            if hasattr(self, 'setUnderPageBackgroundColor_'):
+                self.setUnderPageBackgroundColor_(Cocoa.NSColor.clearColor())
             
-            # Create 5 waveform bars
-            self.bars = []
-            self.bar_layers = []
-            num_bars = 5
-            bar_width = 3
-            bar_spacing = 2
-            total_width = num_bars * bar_width + (num_bars - 1) * bar_spacing
-            start_x = (frame.size.width - total_width) / 2
+            # Set navigation delegate for intercepting URL schemes
+            self.setNavigationDelegate_(self)
             
-            for i in range(num_bars):
-                bar = Quartz.CALayer.layer()
-                bar_x = start_x + i * (bar_width + bar_spacing)
-                min_height = 4
-                bar.setFrame_(((bar_x, (frame.size.height - min_height) / 2), (bar_width, min_height)))
-                bar.setCornerRadius_(bar_width / 2)
-                bar.setBackgroundColor_(Cocoa.NSColor.systemRedColor().CGColor())
-                self.layer().addSublayer_(bar)
-                self.bar_layers.append(bar)
-                self.bars.append(min_height)
-            
-            # Animation offsets for natural movement
-            self.phase_offsets = [0, 0.3, 0.6, 0.3, 0]
-            self.currentLevel = 0.0
-            
-        return self
-    
-    def updateLevel_(self, level):
-        """Update waveform bars based on audio level (0.0-1.0)."""
-        self.currentLevel = level
-        max_height = self.bounds().size.height - 4
-        min_height = 4
-        
-        for i, bar in enumerate(self.bar_layers):
-            # Add phase offset for natural wave effect
-            offset = self.phase_offsets[i]
-            bar_level = min(1.0, level * (1.0 + offset * 0.5))
-            
-            # Calculate target height
-            target_height = min_height + (max_height - min_height) * bar_level
-            
-            # Animate bar height
-            current_frame = bar.frame()
-            new_y = (self.bounds().size.height - target_height) / 2
-            
-            Quartz.CATransaction.begin()
-            Quartz.CATransaction.setAnimationDuration_(0.05)
-            bar.setFrame_(((current_frame.origin.x, new_y), (current_frame.size.width, target_height)))
-            Quartz.CATransaction.commit()
-
-
-class HUDView(Cocoa.NSView):
-    def initWithFrame_(self, frame):
-        self = objc.super(HUDView, self).initWithFrame_(frame)
-        if self:
-            self.setWantsLayer_(True)
-            self.layer().setMasksToBounds_(False)  # Allow shadow to spill out
-            
-            # ===== IMPROVED LAYERED SHADOW =====
-            self.layer().setShadowOpacity_(0.4)
-            self.layer().setShadowRadius_(12.0)
-            self.layer().setShadowOffset_((0, -4))
-            self.layer().setShadowColor_(Cocoa.NSColor.blackColor().CGColor())
-            
-            # ===== MAIN BACKGROUND VIEW =====
-            self.effect_view = Cocoa.NSView.alloc().initWithFrame_(self.bounds())
-            self.effect_view.setAutoresizingMask_(Cocoa.NSViewWidthSizable | Cocoa.NSViewHeightSizable)
-            self.effect_view.setWantsLayer_(True)
-            self.effect_view.layer().setCornerRadius_(14.0)
-            self.effect_view.layer().setMasksToBounds_(True)
-            
-            # ===== GRADIENT BACKGROUND LAYER =====
-            self.gradient_layer = Quartz.CAGradientLayer.layer()
-            self.gradient_layer.setFrame_(((0, 0), (frame.size.width, frame.size.height)))
-            self.gradient_layer.setCornerRadius_(14.0)
-            
-            bottom_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(0.08, 0.08, 0.10, 0.85)
-            top_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.15, 0.18, 0.75)
-            self.gradient_layer.setColors_([bottom_color.CGColor(), top_color.CGColor()])
-            self.gradient_layer.setStartPoint_((0.5, 0.0))
-            self.gradient_layer.setEndPoint_((0.5, 1.0))
-            self.effect_view.layer().addSublayer_(self.gradient_layer)
-            
-            # ===== GLASS TOP HIGHLIGHT =====
-            self.highlight_layer = Quartz.CALayer.layer()
-            highlight_height = 1.5
-            self.highlight_layer.setFrame_(((0, frame.size.height - highlight_height), (frame.size.width, highlight_height)))
-            highlight_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.15)
-            self.highlight_layer.setBackgroundColor_(highlight_color.CGColor())
-            self.highlight_layer.setCornerRadius_(14.0)
-            self.highlight_layer.setMaskedCorners_(Quartz.kCALayerMinXMaxYCorner | Quartz.kCALayerMaxXMaxYCorner)
-            self.effect_view.layer().addSublayer_(self.highlight_layer)
-            
-            # ===== INNER SHADOW FOR DEPTH =====
-            inner_border_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 0.3)
-            self.effect_view.layer().setBorderWidth_(0.5)
-            self.effect_view.layer().setBorderColor_(inner_border_color.CGColor())
-            
-            # ===== STATE INDICATOR BORDER (animated) =====
-            self.border_layer = Quartz.CALayer.layer()
-            self.border_layer.setFrame_(((0, 0), (frame.size.width, frame.size.height)))
-            self.border_layer.setCornerRadius_(14.0)
-            self.border_layer.setBorderWidth_(2.0)
-            self.border_layer.setBorderColor_(Cocoa.NSColor.clearColor().CGColor())
-            self.effect_view.layer().addSublayer_(self.border_layer)
-            
-            self.addSubview_(self.effect_view)
-            
-            # ===== ICON IMAGE VIEW =====
-            icon_size = 18
-            icon_y = (frame.size.height - icon_size) / 2.0
-            self.icon_view = Cocoa.NSImageView.alloc().initWithFrame_(Cocoa.NSMakeRect(16, icon_y, icon_size, icon_size))
-            self.icon_view.setImageScaling_(Cocoa.NSImageScaleProportionallyUpOrDown)
-            self.icon_view.setContentTintColor_(Cocoa.NSColor.whiteColor())
-            self.icon_view.setWantsLayer_(True)  # Enable layer for spinner animation
-            self.effect_view.addSubview_(self.icon_view)
-            self.updateIconForState_(AppState.IDLE)
-            
-            # ===== WAVEFORM VIEW (hidden by default, shown during recording) =====
-            waveform_size = 24
-            waveform_y = (frame.size.height - waveform_size) / 2.0
-            self.waveform_view = WaveformView.alloc().initWithFrame_(Cocoa.NSMakeRect(12, waveform_y, waveform_size, waveform_size))
-            self.waveform_view.setHidden_(True)
-            self.effect_view.addSubview_(self.waveform_view)
-            
-            # ===== TEXT LABEL =====
-            label_x = 16 + icon_size + 8
-            label_width = frame.size.width - label_x - 16
-            label_height = 20
-            label_y = (frame.size.height - label_height) / 2.0
-            self.label = Cocoa.NSTextField.alloc().initWithFrame_(Cocoa.NSMakeRect(label_x, label_y, label_width, label_height))
-            self.label.setBezeled_(False)
-            self.label.setDrawsBackground_(False)
-            self.label.setEditable_(False)
-            self.label.setSelectable_(False)
-            self.label.setAlignment_(Cocoa.NSTextAlignmentLeft)
-            self.label.setFont_(Cocoa.NSFont.systemFontOfSize_weight_(14.0, Cocoa.NSFontWeightSemibold))
-            self.label.setTextColor_(Cocoa.NSColor.whiteColor())
-            self.label.setStringValue_("Idle")
-            
-            self.effect_view.addSubview_(self.label)
-            
-            self.currentState = AppState.IDLE
-            self.spinnerAnimation = None
+            # Load content
+            self.loadHTMLString_baseURL_(HTML_CONTENT, None)
+            logger.info("HUDView initialized and HTML loaded.")
             
         return self
 
-    def updateIconForState_(self, state):
-        """Update the SF Symbol icon for the current state."""
-        icon_name = STATE_ICONS.get(state, "circle")
-        config = Cocoa.NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(
-            16.0, Cocoa.NSFontWeightMedium, Cocoa.NSImageSymbolScaleMedium
-        )
-        image = Cocoa.NSImage.imageWithSystemSymbolName_accessibilityDescription_(icon_name, None)
-        if image:
-            image = image.imageWithSymbolConfiguration_(config)
-            self.icon_view.setImage_(image)
+    def webView_decidePolicyForNavigationAction_decisionHandler_(self, webView, navigationAction, decisionHandler):
+        """Intercept app:// custom schemes."""
+        url = navigationAction.request().URL().absoluteString()
+        if url.startswith("app://stopRecording"):
+            logger.info("HUD: Stop button clicked.")
+            app_delegate = Cocoa.NSApp.delegate()
+            if app_delegate and hasattr(app_delegate, 'recorder'):
+                app_delegate.recorder.stop_recording()
             
-            if state == AppState.RECORDING:
-                self.icon_view.setContentTintColor_(Cocoa.NSColor.systemRedColor())
-            elif state == AppState.PROCESSING:
-                self.icon_view.setContentTintColor_(Cocoa.NSColor.systemBlueColor())
-            elif state == AppState.SUCCESS:
-                self.icon_view.setContentTintColor_(Cocoa.NSColor.systemGreenColor())
-            elif state == AppState.ERROR:
-                self.icon_view.setContentTintColor_(Cocoa.NSColor.systemRedColor())
-            else:
-                self.icon_view.setContentTintColor_(Cocoa.NSColor.whiteColor().colorWithAlphaComponent_(0.7))
+            # Cancel navigation
+            decisionHandler(WebKit.WKNavigationActionPolicyCancel)
+            return
 
-    def updateGradientTintForState_(self, state):
-        """Update the gradient background with state-specific tint."""
-        tint = STATE_TINTS.get(state, STATE_TINTS[AppState.IDLE])
+        # Allow other navigation (should be none for this app)
+        decisionHandler(WebKit.WKNavigationActionPolicyAllow)
+
+    def evaluate_js(self, script):
+        """Helper to run JS in the webview on the main thread."""
+        def _completion_handler(result, error):
+            if error:
+                logger.error(f"JS Error: {error}")
         
-        bottom_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(tint[0] * 0.7, tint[1] * 0.7, tint[2] * 0.7, 0.85)
-        top_color = Cocoa.NSColor.colorWithCalibratedRed_green_blue_alpha_(tint[0] * 1.3, tint[1] * 1.3, tint[2] * 1.3, 0.75)
-        
-        Quartz.CATransaction.begin()
-        Quartz.CATransaction.setAnimationDuration_(0.3)
-        self.gradient_layer.setColors_([bottom_color.CGColor(), top_color.CGColor()])
-        Quartz.CATransaction.commit()
-
-    def startSpinner(self):
-        """Start pulsing animation for processing state."""
-        if self.icon_view.layer():
-            layer = self.icon_view.layer()
-            
-            # Pulsing opacity animation (no anchor point manipulation needed)
-            pulse_anim = Cocoa.CABasicAnimation.animationWithKeyPath_("opacity")
-            pulse_anim.setFromValue_(1.0)
-            pulse_anim.setToValue_(0.4)
-            pulse_anim.setDuration_(0.6)
-            pulse_anim.setAutoreverses_(True)
-            pulse_anim.setRepeatCount_(float("inf"))
-            pulse_anim.setTimingFunction_(
-                Quartz.CAMediaTimingFunction.functionWithName_(Quartz.kCAMediaTimingFunctionEaseInEaseOut)
-            )
-            layer.addAnimation_forKey_(pulse_anim, "pulse_processing")
-
-    def stopSpinner(self):
-        """Stop the processing animation."""
-        if self.icon_view.layer():
-            self.icon_view.layer().removeAnimationForKey_("pulse_processing")
-
-    def showWaveform(self):
-        """Show waveform and hide icon during recording."""
-        self.icon_view.setHidden_(True)
-        self.waveform_view.setHidden_(False)
-
-    def hideWaveform(self):
-        """Hide waveform and show icon."""
-        self.waveform_view.setHidden_(True)
-        self.icon_view.setHidden_(False)
-
-    def updateAudioLevel_(self, level):
-        """Update waveform with audio level."""
-        if not self.waveform_view.isHidden():
-            AppHelper.callAfter(self.waveform_view.updateLevel_, level)
+        def _run():
+            self.evaluateJavaScript_completionHandler_(script, _completion_handler)
+        AppHelper.callAfter(_run)
 
     def setStatus_message_(self, state, message):
-        self.label.setStringValue_(message)
-        self.currentState = state
-        self.updateGradientTintForState_(state)
-        
-        # Handle waveform vs icon visibility
+        """Map AppState to JS state."""
+        js_state = "recording"
         if state == AppState.RECORDING:
-            self.showWaveform()
-            self.stopSpinner()
+            js_state = "recording"
         elif state == AppState.PROCESSING:
-            self.hideWaveform()
-            self.updateIconForState_(state)
-            self.startSpinner()
-        else:
-            self.hideWaveform()
-            self.stopSpinner()
-            self.updateIconForState_(state)
-        
-        # Border animation
-        color = None
-        if state == AppState.RECORDING:
-            color = Cocoa.NSColor.systemRedColor()
-            self.startPulse_(color)
-        elif state == AppState.PROCESSING:
-            color = Cocoa.NSColor.systemBlueColor()
-            self.startPulse_(color)
+            js_state = "processing"
         elif state == AppState.SUCCESS:
-            color = Cocoa.NSColor.systemGreenColor()
-            self.stopPulse()
-            self.border_layer.setBorderColor_(color.CGColor())
+            js_state = "success"
         elif state == AppState.ERROR:
-            color = Cocoa.NSColor.systemRedColor()
-            self.stopPulse()
-            self.border_layer.setBorderColor_(color.CGColor())
+            js_state = "error"
         else:
-            self.stopPulse()
-            self.border_layer.setBorderColor_(Cocoa.NSColor.clearColor().CGColor())
+            js_state = "recording"
+            
+        safe_msg = message.replace("'", "\\'")
+        logger.debug(f"HUD: Calling setState('{js_state}', '{safe_msg}')")
+        self.evaluate_js(f"window.setState('{js_state}', '{safe_msg}')")
 
-    def startPulse_(self, ns_color):
-        color = ns_color.CGColor()
-        self.border_layer.setBorderColor_(color)
+    def updateAudioLevel_(self, level):
+        """Forward audio level to JS bridge."""
+        # Log RAW level to verify input
+        # logger.debug(f"HUD RAW Level: {level}") 
         
-        anim = Cocoa.CABasicAnimation.animationWithKeyPath_("borderColor")
-        anim.setFromValue_(color)
-        color_faded = ns_color.colorWithAlphaComponent_(0.3).CGColor()
-        anim.setToValue_(color_faded)
-        anim.setDuration_(0.8)
-        anim.setAutoreverses_(True)
-        anim.setRepeatCount_(float("inf"))
+        # Boost level for better visibility and clamp to 1.0
+        display_level = min(1.0, level * 5.0)
         
-        self.border_layer.addAnimation_forKey_(anim, "pulse")
-
-    def stopPulse(self):
-        self.border_layer.removeAnimationForKey_("pulse")
+        if display_level > 0.0:
+            # logger.debug(f"HUD Audio Level: {level:.3f} -> {display_level:.3f}")
+            pass
+        self.evaluate_js(f"window.applyShadow({display_level:.2f})")
 
 
 class HUDController(Cocoa.NSObject):
@@ -312,8 +251,9 @@ class HUDController(Cocoa.NSObject):
         self = objc.super(HUDController, self).init()
         if self:
             # Window dimensions
-            self.hudWidth = 200
-            self.hudHeight = 48
+            self.hudWidth = 350 # Increased to accommodate horizontal shadow
+            self.hudHeight = 200 # Increased to avoid clipping shadow
+            
             rect = Cocoa.NSMakeRect(0, 0, self.hudWidth, self.hudHeight)
             
             style_mask = Cocoa.NSWindowStyleMaskBorderless | Cocoa.NSWindowStyleMaskNonactivatingPanel
@@ -321,75 +261,65 @@ class HUDController(Cocoa.NSObject):
                 rect, style_mask, Cocoa.NSBackingStoreBuffered, False
             )
             
-            self.window.setLevel_(Cocoa.NSScreenSaverWindowLevel)
+            # Use a very high level to ensure visibility
+            self.window.setLevel_(Cocoa.NSScreenSaverWindowLevel + 1)
             self.window.setBackgroundColor_(Cocoa.NSColor.clearColor())
             self.window.setOpaque_(False)
             self.window.setHasShadow_(False)
             self.window.setIgnoresMouseEvents_(True)
             self.window.setFloatingPanel_(True)
+            self.window.setHidesOnDeactivate_(False)
+            self.window.setCanHide_(False)
+            self.window.setCollectionBehavior_(
+                Cocoa.NSWindowCollectionBehaviorCanJoinAllSpaces | 
+                Cocoa.NSWindowCollectionBehaviorStationary |
+                Cocoa.NSWindowCollectionBehaviorIgnoresCycle
+            )
             
-            # Calculate positions for slide animation
+            # Calculate positions
             screen = Cocoa.NSScreen.mainScreen()
             visible_frame = screen.visibleFrame()
             
             self.centerX = visible_frame.origin.x + (visible_frame.size.width - self.hudWidth) / 2
-            self.visibleY = visible_frame.origin.y + 100  # Final position
-            self.hiddenY = visible_frame.origin.y - self.hudHeight - 20  # Below screen
+            self.visibleY = visible_frame.origin.y + 120
+            self.hiddenY = visible_frame.origin.y - self.hudHeight - 50
             
             self.window.setFrameOrigin_((self.centerX, self.hiddenY))
             
-            # Set Content View
-            self.view = HUDView.alloc().initWithFrame_(rect)
+            # Use current content view bounds
+            self.view = HUDView.alloc().initWithFrame_(self.window.contentView().bounds())
             self.window.setContentView_(self.view)
             
-            # Subscribe to state changes
+            # Subscribe to events
             state_machine.add_observer(self.on_state_change)
-            
-            # Subscribe to audio level updates
             state_machine.add_audio_level_observer(self.on_audio_level)
             
-            # Initially hidden
             self.window.setAlphaValue_(0.0)
             self.window.orderOut_(None)
             self.isVisible = False
             
-            # Warmup: briefly show window at 0 alpha to pre-render
-            self.performSelector_withObject_afterDelay_(objc.selector(self.warmupHUD, signature=b'v@:'), None, 0.5)
+            logger.info("HUDController initialized.")
             
         return self
-
-    def warmupHUD(self):
-        """Pre-render the HUD window to avoid delay on first display."""
-        # Show window invisibly to force rendering
-        self.window.setAlphaValue_(0.0)
-        self.window.setFrameOrigin_((self.centerX, self.visibleY))
-        self.window.orderFront_(None)
-        # Hide it again after a brief moment
-        self.performSelector_withObject_afterDelay_(objc.selector(self.hideAfterWarmup, signature=b'v@:'), None, 0.1)
-
-    def hideAfterWarmup(self):
-        """Hide the HUD after warmup."""
-        self.window.orderOut_(None)
-        self.window.setFrameOrigin_((self.centerX, self.hiddenY))
 
     def on_state_change(self, state, data):
         AppHelper.callAfter(self.updateUIForState_data_, state, data)
 
     def on_audio_level(self, level):
-        """Forward audio level to the view."""
-        self.view.updateAudioLevel_(level)
+        # Dispatch to main thread immediately
+        # if level > 0.01: logger.debug("HUDController.on_audio_level called")
+        AppHelper.callAfter(self.view.updateAudioLevel_, level)
 
     def updateUIForState_data_(self, state, data):
+        logger.debug(f"HUD: on_state_change({state})")
         if state == AppState.IDLE:
             self.slideOut()
         else:
-            msg = ""
+            msg = "Listening..."
             if state == AppState.RECORDING:
                 msg = "Listening..."
             elif state == AppState.PROCESSING:
-                msg = "Processing..."
-                if data.get('use_gemini'):
-                    msg = "Magic..."
+                msg = "Magic..." if data.get('use_gemini') else "Processing..."
             elif state == AppState.SUCCESS:
                 msg = "Copied!"
             elif state == AppState.ERROR:
@@ -399,44 +329,46 @@ class HUDController(Cocoa.NSObject):
             self.slideIn()
 
     def slideIn(self):
-        """Slide up from below screen."""
-        if self.isVisible:
+        # Cancel any pending hide requests
+        Cocoa.NSObject.cancelPreviousPerformRequestsWithTarget_selector_object_(
+            self, objc.selector(self.window.orderOut_, signature=b'v@:@'), None
+        )
+        
+        if self.isVisible: 
+            self.window.orderFrontRegardless()
             return
-        
+
         self.isVisible = True
-        self.window.setFrameOrigin_((self.centerX, self.hiddenY))
-        self.window.setAlphaValue_(0.0)
-        self.window.orderFront_(None)
+        logger.info(f"HUD sliding in to ({self.centerX}, {self.visibleY})...")
         
-        # Animate slide up + fade in
+        # Start slightly below target for a subtle slide up
+        start_y = self.visibleY - 20
+        self.window.setFrameOrigin_((self.centerX, start_y))
+        self.window.setAlphaValue_(0.0)
+        self.window.orderFrontRegardless()
+        
         Cocoa.NSAnimationContext.beginGrouping()
         Cocoa.NSAnimationContext.currentContext().setDuration_(0.3)
         Cocoa.NSAnimationContext.currentContext().setTimingFunction_(
             Quartz.CAMediaTimingFunction.functionWithName_(Quartz.kCAMediaTimingFunctionEaseOut)
         )
-        self.window.animator().setFrame_display_(
-            Cocoa.NSMakeRect(self.centerX, self.visibleY, self.hudWidth, self.hudHeight),
-            True
-        )
+        self.window.animator().setFrameOrigin_((self.centerX, self.visibleY))
         self.window.animator().setAlphaValue_(1.0)
         Cocoa.NSAnimationContext.endGrouping()
 
     def slideOut(self):
-        """Slide down and fade out."""
-        if not self.isVisible:
-            return
-        
+        if not self.isVisible: return
         self.isVisible = False
+        logger.info("HUD sliding out...")
         
-        # Animate slide down + fade out
         Cocoa.NSAnimationContext.beginGrouping()
         Cocoa.NSAnimationContext.currentContext().setDuration_(0.25)
         Cocoa.NSAnimationContext.currentContext().setTimingFunction_(
             Quartz.CAMediaTimingFunction.functionWithName_(Quartz.kCAMediaTimingFunctionEaseIn)
         )
-        self.window.animator().setFrame_display_(
-            Cocoa.NSMakeRect(self.centerX, self.hiddenY, self.hudWidth, self.hudHeight),
-            True
-        )
+        self.window.animator().setFrameOrigin_((self.centerX, self.hiddenY))
         self.window.animator().setAlphaValue_(0.0)
         Cocoa.NSAnimationContext.endGrouping()
+        
+        # Order out after animation
+        self.performSelector_withObject_afterDelay_(objc.selector(self.window.orderOut_, signature=b'v@:@'), None, 0.25)

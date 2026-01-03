@@ -263,24 +263,53 @@ class AudioRecorder:
         self.reset_timer.start()
 
     def inject_text(self, text):
-        pyperclip.copy(text)
-        time.sleep(0.01)  # Reduced from 50ms - just need minimal clipboard sync time
+        from .typer import FastTyper
+        from .clipboard import ClipboardManager
+
+        # Strategy A: Fast Typing (Universal, Safe)
+        # Use for short-to-medium text where typing speed is acceptable.
+        # This is the most compatible method as it works at the HID level.
+        if len(text) < 1000:
+            if FastTyper.type_text(text):
+                return
+            logger.warning("FastTyper failed, falling back to clipboard injection.")
+
+        # Strategy B: Clipboard Injection (Fallback / Bulk)
+        # 1. Snapshot current clipboard
+        # 2. Copy new text
+        # 3. Paste
+        # 4. Restore original clipboard (async)
         
         try:
-            cmd_down = Quartz.CGEventCreateKeyboardEvent(None, 0x37, True)
-            Quartz.CGEventSetFlags(cmd_down, Quartz.kCGEventFlagMaskCommand)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_down)
+            snapshot = ClipboardManager.snapshot()
             
-            v_down = Quartz.CGEventCreateKeyboardEvent(None, 0x09, True)
-            Quartz.CGEventSetFlags(v_down, Quartz.kCGEventFlagMaskCommand)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_down)
+            pyperclip.copy(text)
+            # Short sleep to ensure clipboard update propagates
+            time.sleep(0.05)
             
-            v_up = Quartz.CGEventCreateKeyboardEvent(None, 0x09, False)
-            Quartz.CGEventSetFlags(v_up, Quartz.kCGEventFlagMaskCommand)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_up)
+            # Simulate Cmd+V
+            try:
+                cmd_down = Quartz.CGEventCreateKeyboardEvent(None, 0x37, True)
+                Quartz.CGEventSetFlags(cmd_down, Quartz.kCGEventFlagMaskCommand)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_down)
+                
+                v_down = Quartz.CGEventCreateKeyboardEvent(None, 0x09, True)
+                Quartz.CGEventSetFlags(v_down, Quartz.kCGEventFlagMaskCommand)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_down)
+                
+                v_up = Quartz.CGEventCreateKeyboardEvent(None, 0x09, False)
+                Quartz.CGEventSetFlags(v_up, Quartz.kCGEventFlagMaskCommand)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, v_up)
 
-            cmd_up = Quartz.CGEventCreateKeyboardEvent(None, 0x37, False)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_up)
-            
-        except Exception:
-            subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])
+                cmd_up = Quartz.CGEventCreateKeyboardEvent(None, 0x37, False)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, cmd_up)
+            except Exception:
+                subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])
+
+            # Scheduled restoration of the user's original clipboard
+            if snapshot:
+                threading.Timer(0.6, lambda: ClipboardManager.restore(snapshot)).start()
+                
+        except Exception as e:
+            logger.error(f"Injection failed: {e}", exc_info=True)
+

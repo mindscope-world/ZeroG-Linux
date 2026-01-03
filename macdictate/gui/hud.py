@@ -269,8 +269,8 @@ class HUDController(Cocoa.NSObject):
             self.window.setBackgroundColor_(Cocoa.NSColor.clearColor())
             self.window.setOpaque_(False)
             self.window.setHasShadow_(False)
-            # Enable mouse events so the stop button works
-            self.window.setIgnoresMouseEvents_(False) 
+            # Enable mouse events only when visible (set to True initially for click-through)
+            self.window.setIgnoresMouseEvents_(True) 
             self.window.setFloatingPanel_(True)
             self.window.setHidesOnDeactivate_(False)
             self.window.setCanHide_(False)
@@ -345,6 +345,9 @@ class HUDController(Cocoa.NSObject):
         self.isVisible = True
         logger.info(f"HUD sliding in to ({self.centerX}, {self.visibleY})...")
         
+        # ENABLE mouse events for interaction
+        self.window.setIgnoresMouseEvents_(False)
+        
         # Start slightly below target for a subtle slide up
         start_y = self.visibleY - 20
         self.window.setFrameOrigin_((self.centerX, start_y))
@@ -364,6 +367,9 @@ class HUDController(Cocoa.NSObject):
         if not self.isVisible: return
         self.isVisible = False
         logger.info("HUD sliding out...")
+        
+        # DISABLE mouse events (allow click-through) immediately
+        self.window.setIgnoresMouseEvents_(True)
         
         Cocoa.NSAnimationContext.beginGrouping()
         Cocoa.NSAnimationContext.currentContext().setDuration_(0.25)

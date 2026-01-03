@@ -138,6 +138,16 @@ python -m pytest --cov=macdictate tests/
 
 ## 📅 Change Log
 
+### [v0.8.0] - 2026-01-02
+- **Universal Text Injection**: A massive upgrade to compatibility.
+    - **FastTyper**: Uses low-level `CGEvent` to simulate hardware typing for instant, universal compatibility (works in Chrome, Terminal, VS Code, etc.).
+    - **Clipboard Safety**: New `ClipboardManager` snapshots and restores your clipboard content, so dictating doesn't overwrite your copied images or files.
+    - **Tiered Logic**: Automatically switches between Instant Typing (short text) and Safe Paste (long text) for the best performance.
+- **Robustness**:
+    - Removed reliance on flaky Accessibility APIs for text insertion.
+    - Added comprehensive unit tests for core injection logic.
+    - Enhanced debug logging for easier troubleshooting.
+
 ### [v0.7.0] - 2026-01-02
 - **"Liquid Orbit" HUD**: Complete visual overhaul using a modern web-based rendering engine.
     - **Audio Visualization**: Real-time, thread-safe audio glow that pulses organically with your voice.

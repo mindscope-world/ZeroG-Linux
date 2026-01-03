@@ -82,23 +82,58 @@ class TestAudioRecorder(unittest.TestCase):
             mock_stream.close.assert_called_once()
 
     @patch('macdictate.core.recorder.mlx_whisper.transcribe')
-    @patch('macdictate.core.recorder.pyperclip.copy')
-    @patch('macdictate.core.recorder.Quartz')
     @patch('macdictate.core.recorder.state_machine')
-    def test_transcribe_and_type_no_gemini(self, mock_state_machine, mock_quartz, mock_copy, mock_transcribe):
-        # Mock transcription result
-        mock_transcribe.return_value = {"text": "Hello world"}
-        
-        # Add dummy audio data to queue
-        self.recorder.audio_queue.put(MagicMock())
-        
-        self.recorder.transcribe_and_type(use_gemini=False)
-        
-        mock_copy.assert_called_with("Hello world")
-        # Verify Quartz was used for cmd+v
-        mock_quartz.CGEventCreateKeyboardEvent.assert_called()
-        mock_quartz.CGEventPost.assert_called()
-
+    def test_transcribe_and_type_no_gemini(self, mock_state_machine, mock_transcribe):
+        # We need to mock the local imports inside inject_text
+        with patch('macdictate.core.typer.FastTyper.type_text') as mock_type_text, \
+             patch('macdictate.core.clipboard.ClipboardManager') as mock_clipboard:
+            
+            # Setup mock to return True for typing success
+            mock_type_text.return_value = True
+            
+            # Mock transcription result "Hello world" (length 11 < 1000)
+            mock_transcribe.return_value = {"text": "Hello world"}
+            
+            # Add dummy audio data to queue
+            self.recorder.audio_queue.put(MagicMock())
+            
+            # Action
+            self.recorder.transcribe_and_type(use_gemini=False)
+            
+            # Assert
+            # Should choose FastTyper path for short text
+            mock_type_text.assert_called_with("Hello world")
+            # Should NOT fallback to clipboard
+            mock_clipboard.snapshot.assert_not_called()
+    
+    @patch('macdictate.core.recorder.mlx_whisper.transcribe')
+    @patch('macdictate.core.recorder.state_machine')
+    @patch('macdictate.core.recorder.pyperclip.copy')
+    def test_transcribe_long_text_fallback(self, mock_copy, mock_state_machine, mock_transcribe):
+        """Test fallback strategy for long text"""
+        with patch('macdictate.core.typer.FastTyper.type_text') as mock_type_text, \
+             patch('macdictate.core.clipboard.ClipboardManager') as mock_clipboard, \
+             patch('macdictate.core.recorder.Quartz') as mock_quartz:
+             
+             # Create long text > 1000 chars
+             long_text = "A" * 1005
+             mock_transcribe.return_value = {"text": long_text}
+             self.recorder.audio_queue.put(MagicMock())
+             
+             # Action
+             self.recorder.transcribe_and_type(use_gemini=False)
+             
+             # Assert
+             # FastTyper should NOT be called because check happens before
+             mock_type_text.assert_not_called()
+             
+             # Fallback path
+             mock_clipboard.snapshot.assert_called_once()
+             mock_copy.assert_called_with(long_text)
+             mock_clipboard.restore.assert_not_called() # Restore is async/timer based, confusing to test here without mocking timer
+             
+             # Verify Cmd+V posted
+             mock_quartz.CGEventCreateKeyboardEvent.assert_called()
     @patch('macdictate.core.recorder.state_machine')
     def test_recorder_callback(self, mock_state_machine):
         # Create a dummy audio buffer (numpy array)

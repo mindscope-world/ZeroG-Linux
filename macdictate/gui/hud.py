@@ -56,12 +56,7 @@ HTML_CONTENT = r"""
                         <span id="label-text" class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-300">Listening...</span>
                     </div>
                     
-                    <!-- Manual Stop Button -->
-                    <button onclick="window.location.href='app://stopRecording'" class="ml-auto mr-1 p-2 rounded-full hover:bg-slate-700/50 text-slate-500 hover:text-rose-400 transition-colors z-20 group">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <rect x="6" y="6" width="12" height="12" rx="2" />
-                        </svg>
-                    </button>
+
                 `
             },
             processing: {
@@ -118,8 +113,7 @@ HTML_CONTENT = r"""
             if (!config) return;
             
             currentState = stateName;
-            // Increased width to 240px to accommodate stop button
-            container.className = `w-[240px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative transition-all duration-75 select-none overflow-visible ${config.shadow} ${config.border}`;
+            container.className = `w-[210px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative transition-all duration-75 select-none overflow-visible ${config.shadow} ${config.border}`;
             
             if (stateName === 'error') {
                 container.classList.add('shake-anim');
@@ -346,7 +340,7 @@ class HUDController(Cocoa.NSObject):
         logger.info(f"HUD sliding in to ({self.centerX}, {self.visibleY})...")
         
         # ENABLE mouse events for interaction
-        self.window.setIgnoresMouseEvents_(False)
+        # self.window.setIgnoresMouseEvents_(False)
         
         # Start slightly below target for a subtle slide up
         start_y = self.visibleY - 20

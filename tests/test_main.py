@@ -174,7 +174,7 @@ class TestAudioRecorder(unittest.TestCase):
         self.assertIsNotNone(self.recorder._silence_start_time)
         start_time = self.recorder._silence_start_time
         
-        # 2. Advance time past SILENCE_DURATION (10.0s)
+        # 2. Advance time past SILENCE_DURATION (5.0s)
         # We need to mock time.time() to simulate time passing, 
         # but since we can't easily patch time.time inside the method after instance creation 
         # without affecting other things or using a class-level patch, 

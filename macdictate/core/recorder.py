@@ -21,7 +21,7 @@ MODEL_PATH = "mlx-community/whisper-medium-mlx-4bit"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 SILENCE_THRESHOLD = 0.015  # RMS amplitude below which is considered silence
-SILENCE_DURATION = 10.0    # Seconds of silence to trigger auto-stop
+SILENCE_DURATION = 5.0    # Seconds of silence to trigger auto-stop
 
 class AudioRecorder:
     def __init__(self):

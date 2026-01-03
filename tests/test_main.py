@@ -154,6 +154,50 @@ class TestAudioRecorder(unittest.TestCase):
         # Verify broadcast
         # RMS of 0.1 is 0.1. Level = min(1.0, 0.1 * 10) = 1.0
         mock_state_machine.broadcast_audio_level.assert_called_with(1.0)
+    
+    @patch('macdictate.core.recorder.state_machine')
+    def test_silence_detection(self, mock_state_machine):
+        # Mock context default
+        mock_state_machine.context.get.return_value = False
+        
+        # 1. Start silence timer with first silent chunk
+        import numpy as np
+        # RMS < 0.015 (threshold) -> let's use 0.001
+        # Mean of (0.001^2) = 1e-6. Sqrt(1e-6) = 0.001
+        indata_silent = np.full((1024, 1), 0.001, dtype=np.float32)
+        
+        self.recorder.recording = True # Must be true for callback to process
+        self.recorder._silence_start_time = None
+        self.recorder.callback(indata_silent, 1024, {}, None)
+        
+        # Should have started tracking silence
+        self.assertIsNotNone(self.recorder._silence_start_time)
+        start_time = self.recorder._silence_start_time
+        
+        # 2. Advance time past SILENCE_DURATION (10.0s)
+        # We need to mock time.time() to simulate time passing, 
+        # but since we can't easily patch time.time inside the method after instance creation 
+        # without affecting other things or using a class-level patch, 
+        # we'll manually set start_time to be 11 seconds ago.
+        import time
+        self.recorder._silence_start_time = time.time() - 11.0
+        
+        # 3. Process another silent chunk
+        with patch('macdictate.core.recorder.threading.Thread') as mock_thread:
+            self.recorder.callback(indata_silent, 1024, {}, None)
+            
+            # 4. Should trigger state change
+            self.assertTrue(self.recorder._triggered_silence_stop)
+            mock_thread.assert_called_once()
+            
+            # Verify it calls state_machine.set_state with PROCESSING
+            target = mock_thread.call_args[1]['target']
+            args = mock_thread.call_args[1]['args']
+            
+            # state_machine might be a Mock here, so target is likely mock_state_machine.set_state
+            self.assertEqual(target, mock_state_machine.set_state)
+            from macdictate.core.state import AppState
+            self.assertEqual(args[0], AppState.PROCESSING)
 
 if __name__ == '__main__':
     unittest.main()

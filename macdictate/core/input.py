@@ -38,6 +38,8 @@ class KeyMonitor(threading.Thread):
                 if is_ctrl_pressed and not self.was_pressed:
                     if current_state == AppState.IDLE or current_state == AppState.SUCCESS or current_state == AppState.ERROR:
                         self.q_pressed_during_session = False
+                        # Reset context for new session
+                        state_machine.context['use_gemini'] = False
                         self.recording_start_time = time.time()  # Start timeout timer
                         state_machine.set_state(AppState.RECORDING)
                         self.was_pressed = True
@@ -48,6 +50,7 @@ class KeyMonitor(threading.Thread):
                         # Check for Q key
                         if not self.q_pressed_during_session and self.is_key_pressed(KEY_CODE_Q):
                             self.q_pressed_during_session = True
+                            state_machine.context['use_gemini'] = True
                         
                         # Check for recording timeout (safety valve)
                         if self.recording_start_time and (time.time() - self.recording_start_time) > MAX_RECORDING_SECONDS:

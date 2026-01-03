@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = "mlx-community/whisper-medium-mlx-4bit"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
+SILENCE_THRESHOLD = 0.015  # RMS amplitude below which is considered silence
+SILENCE_DURATION = 10.0    # Seconds of silence to trigger auto-stop
 
 class AudioRecorder:
     def __init__(self):
@@ -30,7 +32,12 @@ class AudioRecorder:
         self.reset_timer = None
         self._model_dir = None  # Cached resolved model path
         self._preloaded_sound = None  # Pre-loaded sound effect
+        self._preloaded_sound = None  # Pre-loaded sound effect
         self._processing_start_time = None  # For latency tracking
+        
+        # Silence detection
+        self._silence_start_time = None
+        self._triggered_silence_stop = False
         
         state_machine.add_observer(self.on_state_change)
         threading.Thread(target=self._initialize_all, daemon=True).start()
@@ -109,7 +116,7 @@ class AudioRecorder:
         else:
             subprocess.Popen(["afplay", SOUND_FILE])
 
-    def callback(self, indata, frames, time, status):
+    def callback(self, indata, frames, time_info, status):
         if self.recording:
             self.audio_queue.put(indata.copy())
             # Calculate RMS level for waveform visualization (0.0 - 1.0)
@@ -123,6 +130,21 @@ class AudioRecorder:
             level = float(min(1.0, rms * 10))
             # Broadcast audio level to HUD via state machine
             state_machine.broadcast_audio_level(level)
+
+            # --- Silence Detection ---
+            if rms < SILENCE_THRESHOLD:
+                if self._silence_start_time is None:
+                    self._silence_start_time = time.time()
+                elif (time.time() - self._silence_start_time) > SILENCE_DURATION:
+                    if not self._triggered_silence_stop:
+                        logger.info(f"Silence detected (> {SILENCE_DURATION}s). Stopping recording.")
+                        self._triggered_silence_stop = True
+                        # Trigger state change in a separate thread to avoid blocking audio callback
+                        use_gemini = state_machine.context.get('use_gemini', False)
+                        threading.Thread(target=state_machine.set_state, args=(AppState.PROCESSING,), kwargs={'use_gemini': use_gemini}, daemon=True).start()
+            else:
+                # Reset silence timer if we hear sound
+                self._silence_start_time = None
 
     def start_recording(self):
         if self.reset_timer:
@@ -138,6 +160,11 @@ class AudioRecorder:
                 
             logger.info("Starting Recording...")
             self.recording = True
+            
+            # Reset silence logic
+            self._silence_start_time = None
+            self._triggered_silence_stop = False
+            
             self.audio_queue = queue.Queue()
             self.play_sound()
             

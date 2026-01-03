@@ -18,6 +18,7 @@ MacDictate brings the power of **Apple Silicon optimized AI** to your fingertips
 - **🔒 Privacy First**: By default, everything stays on your Mac. Audio is processed locally. (Optional Gemini editing uses the cloud).
 - **⌨️ Universal Hotkey**: Hold `Left Control` to talk in *any* application.
 - **🧠 Smart Formatting**: (Optional) Hold `Control + Q` to have Gemini clean up your grammar and formatting.
+- **😶 Hands-Free Mode**: Automatically stops recording when you stop speaking (10s silence timeout).
 - **💎 Native UI**: Floating "Glass" HUD that stays out of your way and pulses when listening.
 
 ---
@@ -49,6 +50,7 @@ python main.py
 ```
 You will see a microphone icon in your Menu Bar.
 - **Talk**: Hold `Left Control`. The HUD will appear. Speak. Release to transcribe.
+- **Hands-Free**: Press `Left Control`, start speaking, and just stop when done. The app will detect silence (10s) and auto-transcribe.
 - **Talk + Polish**: Hold `Left Control + Q`. Speak. Release.
 
 ### 4. Create an Automator App
@@ -137,6 +139,11 @@ python -m pytest --cov=macdictate tests/
 ---
 
 ## 📅 Change Log
+
+### [v0.8.1] - 2026-01-02
+- **Hands-Free SIlence Stop**: Added automatic recording stop after 10 seconds of silence.
+    - Improves accessibility and ease of use.
+    - Verified with new unit tests ensuring robust state transitions.
 
 ### [v0.8.0] - 2026-01-02
 - **Universal Text Injection**: A massive upgrade to compatibility.

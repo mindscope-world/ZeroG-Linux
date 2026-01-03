@@ -32,6 +32,7 @@ class StateMachine:
         self._audio_level_observers = []  # Separate observers for audio levels
         self._state_lock = threading.Lock()
         self._data = {} # Optional payload for state (e.g., error message)
+        self.context = {} # Shared session context (e.g., flags like use_gemini)
 
     def add_observer(self, observer_func):
         """

@@ -9,32 +9,32 @@ import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import from the new package structure
-from macdictate.core.recorder import AudioRecorder
+from zerog.core.recorder import AudioRecorder
 
 class TestAudioRecorder(unittest.TestCase):
 
-    @patch('macdictate.core.recorder.mlx_whisper')
-    @patch('macdictate.core.recorder.sd.InputStream')
-    @patch('macdictate.core.recorder.threading.Thread') # Mock thread starting in __init__
+    @patch('zerog.core.recorder.mlx_whisper')
+    @patch('zerog.core.recorder.sd.InputStream')
+    @patch('zerog.core.recorder.threading.Thread') # Mock thread starting in __init__
     def setUp(self, mock_thread, mock_sd, mock_whisper):
         # We also need to mock state_machine to avoid side effects
-        with patch('macdictate.core.recorder.state_machine'):
+        with patch('zerog.core.recorder.state_machine'):
             self.recorder = AudioRecorder()
 
     def test_recorder_initial_state(self):
         self.assertFalse(self.recorder.recording)
         self.assertIsInstance(self.recorder.audio_queue, queue.Queue)
 
-    @patch('macdictate.core.recorder.state_machine')
-    @patch('macdictate.core.recorder.sd.InputStream')
-    @patch('macdictate.core.recorder.Cocoa.NSSound')
+    @patch('zerog.core.recorder.state_machine')
+    @patch('zerog.core.recorder.sd.InputStream')
+    @patch('zerog.core.recorder.Cocoa.NSSound')
     def test_start_recording(self, mock_nssound, mock_sd, mock_state_machine):
         # Mock sound object
         mock_sound_instance = MagicMock()
         mock_nssound.soundNamed_.return_value = mock_sound_instance
         
         # Set state to RECORDING (required due to race condition protection)
-        from macdictate.core.state import AppState
+        from zerog.core.state import AppState
         mock_state_machine.current_state = AppState.RECORDING
         
         self.recorder.start_recording()
@@ -47,13 +47,13 @@ class TestAudioRecorder(unittest.TestCase):
         
         mock_sd.assert_called_once()
 
-    @patch('macdictate.core.recorder.sd.InputStream')
+    @patch('zerog.core.recorder.sd.InputStream')
     def test_stop_recording(self, mock_sd):
         self.recorder.recording = True
         mock_stream = MagicMock()
         self.recorder.stream = mock_stream
         
-        with patch('macdictate.core.recorder.threading.Thread') as mock_thread:
+        with patch('zerog.core.recorder.threading.Thread') as mock_thread:
             self.recorder.stop_recording(use_gemini=False)
             
             self.assertFalse(self.recorder.recording)
@@ -81,12 +81,12 @@ class TestAudioRecorder(unittest.TestCase):
             mock_stream.stop.assert_called_once()
             mock_stream.close.assert_called_once()
 
-    @patch('macdictate.core.recorder.mlx_whisper.transcribe')
-    @patch('macdictate.core.recorder.state_machine')
+    @patch('zerog.core.recorder.mlx_whisper.transcribe')
+    @patch('zerog.core.recorder.state_machine')
     def test_transcribe_and_type_no_gemini(self, mock_state_machine, mock_transcribe):
         # We need to mock the local imports inside inject_text
-        with patch('macdictate.core.typer.FastTyper.type_text') as mock_type_text, \
-             patch('macdictate.core.clipboard.ClipboardManager') as mock_clipboard:
+        with patch('zerog.core.typer.FastTyper.type_text') as mock_type_text, \
+             patch('zerog.core.clipboard.ClipboardManager') as mock_clipboard:
             
             # Setup mock to return True for typing success
             mock_type_text.return_value = True
@@ -106,14 +106,14 @@ class TestAudioRecorder(unittest.TestCase):
             # Should NOT fallback to clipboard
             mock_clipboard.snapshot.assert_not_called()
     
-    @patch('macdictate.core.recorder.mlx_whisper.transcribe')
-    @patch('macdictate.core.recorder.state_machine')
-    @patch('macdictate.core.recorder.pyperclip.copy')
+    @patch('zerog.core.recorder.mlx_whisper.transcribe')
+    @patch('zerog.core.recorder.state_machine')
+    @patch('zerog.core.recorder.pyperclip.copy')
     def test_transcribe_long_text_fallback(self, mock_copy, mock_state_machine, mock_transcribe):
         """Test fallback strategy for long text"""
-        with patch('macdictate.core.typer.FastTyper.type_text') as mock_type_text, \
-             patch('macdictate.core.clipboard.ClipboardManager') as mock_clipboard, \
-             patch('macdictate.core.recorder.Quartz') as mock_quartz:
+        with patch('zerog.core.typer.FastTyper.type_text') as mock_type_text, \
+             patch('zerog.core.clipboard.ClipboardManager') as mock_clipboard, \
+             patch('zerog.core.recorder.Quartz') as mock_quartz:
              
              # Create long text > 1000 chars
              long_text = "A" * 1005
@@ -134,7 +134,7 @@ class TestAudioRecorder(unittest.TestCase):
              
              # Verify Cmd+V posted
              mock_quartz.CGEventCreateKeyboardEvent.assert_called()
-    @patch('macdictate.core.recorder.state_machine')
+    @patch('zerog.core.recorder.state_machine')
     def test_recorder_callback(self, mock_state_machine):
         # Create a dummy audio buffer (numpy array)
         import numpy as np
@@ -155,7 +155,7 @@ class TestAudioRecorder(unittest.TestCase):
         # RMS of 0.1 is 0.1. Level = min(1.0, 0.1 * 10) = 1.0
         mock_state_machine.broadcast_audio_level.assert_called_with(1.0)
     
-    @patch('macdictate.core.recorder.state_machine')
+    @patch('zerog.core.recorder.state_machine')
     def test_silence_detection(self, mock_state_machine):
         # Mock context default
         mock_state_machine.context.get.return_value = False
@@ -183,7 +183,7 @@ class TestAudioRecorder(unittest.TestCase):
         self.recorder._silence_start_time = time.time() - 11.0
         
         # 3. Process another silent chunk
-        with patch('macdictate.core.recorder.threading.Thread') as mock_thread:
+        with patch('zerog.core.recorder.threading.Thread') as mock_thread:
             self.recorder.callback(indata_silent, 1024, {}, None)
             
             # 4. Should trigger state change
@@ -196,7 +196,7 @@ class TestAudioRecorder(unittest.TestCase):
             
             # state_machine might be a Mock here, so target is likely mock_state_machine.set_state
             self.assertEqual(target, mock_state_machine.set_state)
-            from macdictate.core.state import AppState
+            from zerog.core.state import AppState
             self.assertEqual(args[0], AppState.PROCESSING)
 
 if __name__ == '__main__':

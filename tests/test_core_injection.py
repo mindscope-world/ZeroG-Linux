@@ -6,13 +6,13 @@ from pathlib import Path
 # Add project root to path to allow importing modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from macdictate.core.typer import FastTyper
-from macdictate.core.clipboard import ClipboardManager
+from zerog.core.typer import FastTyper
+from zerog.core.clipboard import ClipboardManager
 
 class TestFastTyper(unittest.TestCase):
     
-    @patch('macdictate.core.typer.Quartz')
-    @patch('macdictate.core.typer.time')
+    @patch('zerog.core.typer.Quartz')
+    @patch('zerog.core.typer.time')
     def test_type_text_chunking(self, mock_time, mock_quartz):
         """Test that text is split into correct chunks and events are posted."""
         # Setup
@@ -39,14 +39,14 @@ class TestFastTyper(unittest.TestCase):
         # Depending on loop implementation, time.sleep might differ, but at least ensure it was called
         self.assertTrue(mock_time.sleep.called)
 
-    @patch('macdictate.core.typer.Quartz')
+    @patch('zerog.core.typer.Quartz')
     def test_type_empty_string(self, mock_quartz):
         """Test that empty string does nothing."""
         result = FastTyper.type_text("")
         self.assertTrue(result)
         mock_quartz.CGEventPost.assert_not_called()
 
-    @patch('macdictate.core.typer.Quartz')
+    @patch('zerog.core.typer.Quartz')
     def test_failure_handling(self, mock_quartz):
         """Test that exceptions return False."""
         mock_quartz.CGEventCreateKeyboardEvent.side_effect = Exception("Quartz Failure")
@@ -56,7 +56,7 @@ class TestFastTyper(unittest.TestCase):
 
 class TestClipboardManager(unittest.TestCase):
     
-    @patch('macdictate.core.clipboard.Cocoa')
+    @patch('zerog.core.clipboard.Cocoa')
     def test_snapshot_empty(self, mock_cocoa):
         """Test snapshot on empty clipboard."""
         pb_mock = MagicMock()
@@ -66,7 +66,7 @@ class TestClipboardManager(unittest.TestCase):
         result = ClipboardManager.snapshot()
         self.assertEqual(result, [])
 
-    @patch('macdictate.core.clipboard.Cocoa')
+    @patch('zerog.core.clipboard.Cocoa')
     def test_snapshot_capture(self, mock_cocoa):
         """Test capturing a snapshot with items."""
         # Mock NSPasteboard and its items
@@ -87,7 +87,7 @@ class TestClipboardManager(unittest.TestCase):
         self.assertEqual(snapshot[0]["public.utf8-plain-text"], "data_public.utf8-plain-text")
         self.assertEqual(snapshot[0]["public.html"], "data_public.html")
 
-    @patch('macdictate.core.clipboard.Cocoa')
+    @patch('zerog.core.clipboard.Cocoa')
     def test_restore(self, mock_cocoa):
         """Test restoring from snapshot."""
         # Setup snapshot data

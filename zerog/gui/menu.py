@@ -1,7 +1,7 @@
 import Cocoa
 import objc
 from PyObjCTools import AppHelper
-from macdictate.core.state import state_machine, AppState
+from zerog.core.state import state_machine, AppState
 
 class StatusMenuController(Cocoa.NSObject):
     def init(self):
@@ -13,7 +13,7 @@ class StatusMenuController(Cocoa.NSObject):
             self.menu = Cocoa.NSMenu.alloc().init()
             
             self.quit_item = Cocoa.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Quit MacDictate", "terminate:", "q"
+                "Quit ZeroG", "terminate:", "q"
             )
             self.menu.addItem_(self.quit_item)
             
@@ -49,7 +49,7 @@ class StatusMenuController(Cocoa.NSObject):
             symbol_name = "exclamationmark.triangle"
             color = Cocoa.NSColor.systemYellowColor()
 
-        image = Cocoa.NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol_name, "MacDictate Status")
+        image = Cocoa.NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol_name, "ZeroG Status")
         if image:
             image.setTemplate_(True) # Helps with dark/light mode
             

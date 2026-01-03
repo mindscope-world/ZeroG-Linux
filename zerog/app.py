@@ -1,11 +1,11 @@
 import Cocoa
 import objc
-from macdictate.core.recorder import AudioRecorder
-from macdictate.core.input import KeyMonitor
-from macdictate.gui.menu import StatusMenuController
-from macdictate.gui.hud import HUDController
+from zerog.core.recorder import AudioRecorder
+from zerog.core.input import KeyMonitor
+from zerog.gui.menu import StatusMenuController
+from zerog.gui.hud import HUDController
 
-class MacDictateApp(Cocoa.NSObject):
+class ZeroGApp(Cocoa.NSObject):
     def applicationDidFinishLaunching_(self, notification):
         # Initialize Core Logic
         self.recorder = AudioRecorder()
@@ -16,10 +16,10 @@ class MacDictateApp(Cocoa.NSObject):
         self.menu_controller = StatusMenuController.alloc().init()
         self.hud_controller = HUDController.alloc().init()
         
-        print("MacDictate Started (Native Mode)")
+        print("ZeroG Started (Native Mode)")
 
 def run():
     app = Cocoa.NSApplication.sharedApplication()
-    delegate = MacDictateApp.alloc().init()
+    delegate = ZeroGApp.alloc().init()
     app.setDelegate_(delegate)
     app.run()

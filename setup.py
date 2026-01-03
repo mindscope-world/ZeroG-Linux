@@ -7,18 +7,18 @@ sys.setrecursionlimit(5000)
 APP = ['main.py']
 DATA_FILES = [
     '.env',
-    'macdictate/core/gemini_prompt.txt',
+    'zerog/core/gemini_prompt.txt',
 ]
 OPTIONS = {
     'argv_emulation': True,
     'plist': {
         'LSUIElement': True,
-        'CFBundleName': 'MacDictate',
-        'CFBundleDisplayName': 'MacDictate',
-        'CFBundleIdentifier': 'com.antony.macdictate',
+        'CFBundleName': 'ZeroG',
+        'CFBundleDisplayName': 'ZeroG',
+        'CFBundleIdentifier': 'com.antony.zerog',
         'CFBundleVersion': '0.7.0',
     },
-    'packages': ['macdictate', 'sounddevice', 'numpy', 'mlx_whisper', 'Quartz', 'google'],
+    'packages': ['zerog', 'sounddevice', 'numpy', 'mlx_whisper', 'Quartz', 'google'],
     'includes': ['google.genai', 'certifi'],
 }
 

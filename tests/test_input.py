@@ -1,19 +1,19 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import time
-from macdictate.core.state import AppState
+from zerog.core.state import AppState
 
 # We need to mock Quartz properly since it might not exist in test env or we want to control it
 # But we import KeyMonitor which imports Quartz.
 # If Quartz is not installed in the environment running tests (it is here), it's fine.
 # We will patch it regardless.
 
-from macdictate.core.input import KeyMonitor, KEY_CODE_CTRL, KEY_CODE_Q
+from zerog.core.input import KeyMonitor, KEY_CODE_CTRL, KEY_CODE_Q
 
 class TestKeyMonitor(unittest.TestCase):
     
-    @patch('macdictate.core.input.Quartz.CGEventSourceKeyState')
-    @patch('macdictate.core.input.state_machine')
+    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
+    @patch('zerog.core.input.state_machine')
     def test_run_idle_to_recording(self, mock_state_machine, mock_key_state):
         monitor = KeyMonitor()
         monitor.running = True
@@ -61,9 +61,9 @@ class TestKeyMonitor(unittest.TestCase):
     # We can rely on `time.sleep` being called at the end of the loop.
     # We patch `time.sleep` to set `self.running = False`.
     
-    @patch('macdictate.core.input.state_machine')
-    @patch('macdictate.core.input.Quartz.CGEventSourceKeyState')
-    @patch('macdictate.core.input.time.sleep')
+    @patch('zerog.core.input.state_machine')
+    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
+    @patch('zerog.core.input.time.sleep')
     def test_transition_idle_to_recording(self, mock_sleep, mock_key_state, mock_sm):
         monitor = KeyMonitor()
         mock_sm.current_state = AppState.IDLE
@@ -81,9 +81,9 @@ class TestKeyMonitor(unittest.TestCase):
         mock_sm.set_state.assert_called_once_with(AppState.RECORDING)
         self.assertTrue(monitor.was_pressed)
 
-    @patch('macdictate.core.input.state_machine')
-    @patch('macdictate.core.input.Quartz.CGEventSourceKeyState')
-    @patch('macdictate.core.input.time.sleep')
+    @patch('zerog.core.input.state_machine')
+    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
+    @patch('zerog.core.input.time.sleep')
     def test_transition_recording_to_processing(self, mock_sleep, mock_key_state, mock_sm):
         monitor = KeyMonitor()
         
@@ -104,9 +104,9 @@ class TestKeyMonitor(unittest.TestCase):
         mock_sm.set_state.assert_called_once_with(AppState.PROCESSING, use_gemini=False)
         self.assertFalse(monitor.was_pressed)
 
-    @patch('macdictate.core.input.state_machine')
-    @patch('macdictate.core.input.Quartz.CGEventSourceKeyState')
-    @patch('macdictate.core.input.time.sleep')
+    @patch('zerog.core.input.state_machine')
+    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
+    @patch('zerog.core.input.time.sleep')
     def test_transition_recording_with_q(self, mock_sleep, mock_key_state, mock_sm):
         monitor = KeyMonitor()
         monitor.was_pressed = True

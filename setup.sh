@@ -4,7 +4,7 @@
 # This script sets up a "virtual environment" (a private folder for our Python plugins)
 # and installs all the AI libraries needed to run the app.
 
-echo "🎙️ Setting up MacDictate..."
+echo "🎙️ Setting up ZeroG..."
 
 # Step 1: Check if Python is installed on this Mac
 # 'command -v python3' looks for the python command in the system.
@@ -15,7 +15,7 @@ then
 fi
 
 # Step 2: Create a virtual environment (folder named .venv)
-# This keeps the MacDictate plugins separate from the rest of your computer.
+# This keeps the ZeroG plugins separate from the rest of your computer.
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
     python3 -m venv .venv
@@ -36,4 +36,4 @@ echo "Installing dependencies (this may take a minute)..."
 pip install -r requirements.txt
 
 echo "✅ Setup complete!"
-echo "To run MacDictate, use: source .venv/bin/activate && python main.py"
+echo "To run ZeroG, use: source .venv/bin/activate && python main.py"

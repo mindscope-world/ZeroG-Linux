@@ -7,8 +7,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from macdictate.core.typer import FastTyper
-from macdictate.core.clipboard import ClipboardManager
+from zerog.core.typer import FastTyper
+from zerog.core.clipboard import ClipboardManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Verification")

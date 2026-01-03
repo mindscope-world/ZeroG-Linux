@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 import threading
 import time
-from macdictate.core.state import StateMachine, AppState
+from zerog.core.state import StateMachine, AppState
 
 class TestStateMachine(unittest.TestCase):
     def setUp(self):

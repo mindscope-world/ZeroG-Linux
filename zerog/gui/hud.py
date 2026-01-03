@@ -4,7 +4,7 @@ import Quartz
 import WebKit
 import logging
 from PyObjCTools import AppHelper
-from macdictate.core.state import state_machine, AppState
+from zerog.core.state import state_machine, AppState
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +15,11 @@ HTML_CONTENT = r"""
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         @keyframes spin-slow { to { transform: rotate(360deg); } }
         @keyframes spin-fast { to { transform: rotate(360deg); } }
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
@@ -28,11 +29,14 @@ HTML_CONTENT = r"""
         .processing-ring { animation: spin-fast 1s linear infinite; }
         .shake-anim { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
         #recorder-interface { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        /* Void Black Background */
         body { background: transparent !important; margin: 0; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; width: 100vw; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
     </style>
 </head>
-<body class="font-['Inter']">
-    <div id="recorder-interface" class="w-[210px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative border border-slate-800 select-none overflow-hidden transition-all duration-75">
+<body class="font-mono">
+    <!-- Main Container: Void Black Background, Vacuum Grey Border -->
+    <div id="recorder-interface" class="w-[210px] h-[48px] bg-[#0b0b0b] rounded-full flex items-center px-2 relative border border-[#333333] select-none overflow-hidden transition-all duration-75">
     </div>
 
     <script>
@@ -40,39 +44,37 @@ HTML_CONTENT = r"""
         let currentState = 'recording';
         const states = {
             recording: {
-                shadow: 'shadow-none', // removed container shadow
-                border: 'border-slate-800',
+                shadow: 'shadow-none', 
+                border: 'border-[#333333]',
                 html: `
-                    <!-- Dedicated Glow Element -->
-                    <div id="glow-ring" class="absolute inset-0 rounded-full transition-all duration-75 ease-out opacity-0 pointer-events-none" style="z-index: -1; box-shadow: 0 0 20px rgba(14,165,233,0.5);"></div>
+                    <!-- Warning Yellow Glow -->
+                    <div id="glow-ring" class="absolute inset-0 rounded-full transition-all duration-75 ease-out opacity-0 pointer-events-none" style="z-index: -1; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);"></div>
                     
                     <div class="w-10 h-10 rounded-full relative flex items-center justify-center flex-shrink-0 z-10">
-                        <div class="absolute inset-0 rounded-full border border-sky-500/30"></div>
-                        <div class="absolute inset-0 rounded-full border-t-2 border-r-2 border-transparent border-t-cyan-400 border-r-teal-400 orbit-ring"></div>
-                        <svg class="w-4 h-4 text-cyan-200" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                        <div class="absolute inset-0 rounded-full border border-[#FFD700]/30"></div>
+                        <div class="absolute inset-0 rounded-full border-t-2 border-r-2 border-transparent border-t-[#FFD700] border-r-[#FFD700] orbit-ring"></div>
+                        <svg class="w-4 h-4 text-[#FFD700]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                     </div>
                     <div class="flex flex-col items-start justify-center leading-none ml-2 z-10">
-                        <span class="text-[9px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Recording</span>
-                        <span id="label-text" class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-300">Listening...</span>
+                        <span class="text-[9px] text-[#EDEDED] opacity-60 font-bold uppercase tracking-wider mb-0.5">ZeroG Link</span>
+                        <span id="label-text" class="text-xs font-bold text-[#FFD700] tracking-widest uppercase">TRANSMITTING...</span>
                     </div>
-                    
-
                 `
             },
             processing: {
-                shadow: 'shadow-[0_0_25px_rgba(99,102,241,0.4)]',
-                border: 'border-indigo-500/30',
+                shadow: 'shadow-[0_0_25px_rgba(255,215,0,0.3)]',
+                border: 'border-[#FFD700]/30',
                 html: `
                     <div class="w-10 h-10 rounded-full relative flex items-center justify-center flex-shrink-0">
-                         <div class="absolute inset-0 rounded-full border border-indigo-500/20"></div>
-                         <div class="absolute inset-0 rounded-full border-2 border-transparent border-l-indigo-400 border-r-purple-400 processing-ring"></div>
-                         <svg class="w-4 h-4 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                         <div class="absolute inset-0 rounded-full border border-[#FFD700]/20"></div>
+                         <div class="absolute inset-0 rounded-full border-2 border-transparent border-l-[#FFD700] border-r-[#EDEDED] processing-ring"></div>
+                         <svg class="w-4 h-4 text-[#EDEDED]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
                          </svg>
                     </div>
                     <div class="flex flex-col items-start justify-center leading-none ml-2">
-                        <span class="text-[9px] text-indigo-300/70 font-medium uppercase tracking-wider mb-0.5">Whisper AI</span>
-                        <span id="label-text" class="text-sm font-bold text-white animate-pulse">Processing...</span>
+                        <span class="text-[9px] text-[#EDEDED] opacity-60 font-bold uppercase tracking-wider mb-0.5">PROCESSING</span>
+                        <span id="label-text" class="text-xs font-bold text-[#EDEDED] animate-pulse uppercase tracking-widest">CALCULATING...</span>
                     </div>
                 `
             },
@@ -87,7 +89,7 @@ HTML_CONTENT = r"""
                          </svg>
                     </div>
                     <div class="flex flex-col items-start justify-center leading-none ml-2">
-                        <span id="label-text" class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-green-300">Success</span>
+                        <span id="label-text" class="text-xs font-bold text-emerald-400 uppercase tracking-widest">ESTABLISHED</span>
                     </div>
                 `
             },
@@ -101,8 +103,8 @@ HTML_CONTENT = r"""
                          </svg>
                     </div>
                     <div class="flex flex-col items-start justify-center leading-none ml-2">
-                        <span class="text-[9px] text-rose-400/70 font-medium uppercase tracking-wider mb-0.5">Error</span>
-                        <span id="label-text" class="text-sm font-bold text-rose-200">Failed</span>
+                        <span class="text-[9px] text-rose-400/70 font-bold uppercase tracking-wider mb-0.5">TURBULENCE</span>
+                        <span id="label-text" class="text-xs font-bold text-rose-200 uppercase tracking-widest">ABORTED</span>
                     </div>
                 `
             }
@@ -113,7 +115,7 @@ HTML_CONTENT = r"""
             if (!config) return;
             
             currentState = stateName;
-            container.className = `w-[210px] h-[48px] bg-[#0F172A] rounded-full flex items-center px-2 relative transition-all duration-75 select-none overflow-visible ${config.shadow} ${config.border}`;
+            container.className = `w-[210px] h-[48px] bg-[#0b0b0b] rounded-full flex items-center px-2 relative transition-all duration-75 select-none overflow-visible ${config.shadow} ${config.border}`;
             
             if (stateName === 'error') {
                 container.classList.add('shake-anim');
@@ -129,31 +131,28 @@ HTML_CONTENT = r"""
 
         let lastIntensity = 0;
         window.applyShadow = function(intensity) {
-            // console.log("JS applyShadow:", intensity);
             if (currentState !== 'recording') return;
             
             const glow = document.getElementById('glow-ring');
             if (!glow) return;
 
-            // Attack/Release Smoothing
-            // If getting louder (Attack), use 120ms (smoother start). If quieter (Release), use 600ms (gentle fade).
             const isAttack = intensity > lastIntensity;
             const duration = isAttack ? '120ms' : '600ms'; 
             
             glow.style.transition = `all ${duration} ease-out`;
 
             const BASE_SIZE = 0;
-            const MAX_EXTRA = 60; // Restored to strong glow (was 25/35)
+            const MAX_EXTRA = 60;
             const size = BASE_SIZE + (intensity * MAX_EXTRA);
             const opacity = 0.3 + (intensity * 0.7); 
             
-            glow.style.boxShadow = `0 0 ${20 + size}px ${5 + (size/2)}px rgba(14, 165, 233, ${opacity})`;
+            // Gold glow rgba(255, 215, 0, ...)
+            glow.style.boxShadow = `0 0 ${20 + size}px ${5 + (size/2)}px rgba(255, 215, 0, ${opacity})`;
             glow.style.opacity = opacity;
             
             lastIntensity = intensity;
         };
 
-        // Ready signal
         console.log("JS Ready");
         window.setState('recording', 'Ready');
     </script>

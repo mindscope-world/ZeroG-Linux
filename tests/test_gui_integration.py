@@ -58,14 +58,14 @@ class TestHUDIntegration(unittest.TestCase):
         self.modules_patcher.start()
         
         # Reloading HUD module to apply shims
-        if 'macdictate.gui.hud' in sys.modules:
-            del sys.modules['macdictate.gui.hud']
+        if 'zerog.gui.hud' in sys.modules:
+            del sys.modules['zerog.gui.hud']
 
     def tearDown(self):
         self.modules_patcher.stop()
 
     def test_hud_controller_audio_update(self):
-        from macdictate.gui.hud import HUDView
+        from zerog.gui.hud import HUDView
         
         # Instantiate directly using Shim base
         # Logic: HUDView.initWithFrame_(None) -> super().initWithFrame_configuration_ -> returns self
@@ -85,7 +85,7 @@ class TestHUDIntegration(unittest.TestCase):
         view.evaluate_js.assert_called_with("window.applyShadow(1.00)")
 
     def test_stop_button_interception(self):
-        from macdictate.gui.hud import HUDView
+        from zerog.gui.hud import HUDView
         
         view = HUDView()
         

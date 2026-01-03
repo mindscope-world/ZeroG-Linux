@@ -6,11 +6,11 @@ import sys
 # Add the project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from macdictate.core import gemini
+from zerog.core import gemini
 
 class TestGeminiProcessor(unittest.TestCase):
 
-    @patch('macdictate.core.gemini.client')
+    @patch('zerog.core.gemini.client')
     def test_process_text_success(self, mock_client):
         # Mock successful response
         mock_response = MagicMock()
@@ -36,7 +36,7 @@ class TestGeminiProcessor(unittest.TestCase):
             result = gemini.process_text("Raw text")
             self.assertEqual(result, "Raw text")
 
-    @patch('macdictate.core.gemini.client')
+    @patch('zerog.core.gemini.client')
     def test_process_text_exception(self, mock_client):
         # Mock exception during API call
         mock_client.models.generate_content.side_effect = Exception("API Error")

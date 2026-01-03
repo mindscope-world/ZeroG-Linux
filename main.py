@@ -1,6 +1,6 @@
 import logging
 import os
-import macdictate.app
+import zerog.app
 from dotenv import load_dotenv
 import certifi
 
@@ -32,4 +32,4 @@ def setup_logging():
 
 if __name__ == "__main__":
     setup_logging()
-    macdictate.app.run()
+    zerog.app.run()

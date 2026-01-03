@@ -18,9 +18,8 @@ import gc
 
 logger = logging.getLogger(__name__)
 
-# Constants
-HF_MODEL_PATH = "mlx-community/distil-whisper-large-v3"
-
+# Constants - 4-bit quantized whisper-medium for faster speed
+MODEL_PATH = "mlx-community/whisper-medium-mlx-4bit"
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 SILENCE_THRESHOLD = 0.015  # RMS amplitude below which is considered silence
@@ -79,19 +78,11 @@ class AudioRecorder:
         self._initialize_models()
 
     def _initialize_models(self):
-        # Resolve model path (prefer local)
-        model_path_str = self._resolve_model_path()
-        
-        logger.info(f"Loading MLX Whisper Model ({model_path_str})...")
+        logger.info(f"Loading MLX Whisper Model ({MODEL_PATH})...")
         try:
-            if os.path.exists(model_path_str):
-                self._model_dir = model_path_str
-                model_dir = Path(model_path_str)
-
-            else:
-                from huggingface_hub import snapshot_download
-                model_dir = Path(snapshot_download(model_path_str))
-                self._model_dir = str(model_dir)  # Cache for reuse
+            from huggingface_hub import snapshot_download
+            model_dir = Path(snapshot_download(MODEL_PATH))
+            self._model_dir = str(model_dir)  # Cache for reuse
             
             weights_path = model_dir / "weights.safetensors"
             model_path_file = model_dir / "model.safetensors"
@@ -147,17 +138,7 @@ class AudioRecorder:
         """Cancel pending model unload."""
         if self._unload_timer:
             self._unload_timer.cancel()
-
             self._unload_timer = None
-
-    def _resolve_model_path(self):
-        """Check for local model, fallback to HF."""
-        # Check standard local location relative to this file
-        # zerog/core/recorder.py -> zerog/core -> zerog -> root -> mlx_models
-        local_path = Path(__file__).parent.parent.parent / "mlx_models" / "distil-large-v3-4-bit"
-        if local_path.exists():
-            return str(local_path)
-        return HF_MODEL_PATH
 
     def on_state_change(self, state, data):
         if state == AppState.RECORDING:
@@ -297,10 +278,8 @@ class AudioRecorder:
             logger.info(f"Collected {len(audio_data)} chunks in {collect_duration*1000:.1f}ms. Shape: {audio_np.shape}")
             
             start_t = time.time()
-
             with self._lock:
-                # Use resolved model path
-                model_path = self._model_dir if self._model_dir else self._resolve_model_path()
+                model_path = self._model_dir if self._model_dir else MODEL_PATH
                 result = mlx_whisper.transcribe(
                     audio_np, 
                     path_or_hf_repo=model_path,

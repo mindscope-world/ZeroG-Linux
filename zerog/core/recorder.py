@@ -24,7 +24,7 @@ SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 SILENCE_THRESHOLD = 0.015  # RMS amplitude below which is considered silence
 SILENCE_DURATION = 5.0    # Seconds of silence to trigger auto-stop
-MODEL_UNLOAD_TIMEOUT = 300 # Unload model after 5 minutes of inactivity
+
 
 class AudioRecorder:
     def __init__(self):
@@ -38,9 +38,6 @@ class AudioRecorder:
         self._preloaded_sound = None  # Pre-loaded sound effect
         self._preloaded_sound = None  # Pre-loaded sound effect
         self._processing_start_time = None  # For latency tracking
-        
-        # Model Unloading Timer
-        self._unload_timer = None
         
         # Silence detection
         self._silence_start_time = None
@@ -108,37 +105,7 @@ class AudioRecorder:
             logger.error(f"Model initialization failed: {e}", exc_info=True)
             self._handle_error("Model Init Failed")
 
-    def unload_model(self):
-        """Unload the MLX Whisper model from memory."""
-        try:
-            # mlx_whisper.transcribe is a function, so we access the module via sys.modules
-            # to reach the ModelHolder class designed for caching
-            if "mlx_whisper.transcribe" in sys.modules:
-                model_holder = sys.modules["mlx_whisper.transcribe"].ModelHolder
-                if model_holder.model is not None:
-                    logger.info("Unloading Whisper model to free memory...")
-                    model_holder.model = None
-                    import mlx.core as mx
-                    try:
-                         mx.clear_cache()
-                    except AttributeError:
-                         mx.metal.clear_cache()
-                    gc.collect()
-                    logger.info("Whisper model unloaded.")
-        except Exception as e:
-            logger.error(f"Failed to unload model: {e}")
 
-    def _schedule_unload(self):
-        """Schedule model unload after timeout."""
-        self._cancel_unload()
-        self._unload_timer = threading.Timer(MODEL_UNLOAD_TIMEOUT, self.unload_model)
-        self._unload_timer.start()
-
-    def _cancel_unload(self):
-        """Cancel pending model unload."""
-        if self._unload_timer:
-            self._unload_timer.cancel()
-            self._unload_timer = None
 
     def on_state_change(self, state, data):
         if state == AppState.RECORDING:
@@ -190,8 +157,7 @@ class AudioRecorder:
             self.reset_timer.cancel()
             self.reset_timer = None
             
-        # Cancel any pending unload when we start using the model
-        self._cancel_unload()
+
 
         with self._lock:
             if self.recording: 
@@ -318,14 +284,12 @@ class AudioRecorder:
                 logger.info("Whisper returned empty text.")
                 state_machine.set_state(AppState.IDLE)
             
-            # Schedule unload after successful processing
-            self._schedule_unload()
+
 
         except Exception as e:
             logger.error(f"Transcription Error: {e}", exc_info=True)
             self._handle_error("Processing Failed")
-            # Also schedule unload on error to not leave it hanging
-            self._schedule_unload()
+
 
     def _handle_error(self, message):
         state_machine.set_state(AppState.ERROR, error=message)

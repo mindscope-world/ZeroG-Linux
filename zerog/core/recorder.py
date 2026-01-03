@@ -13,15 +13,19 @@ import threading
 import subprocess
 from .state import state_machine, AppState
 from . import gemini
+import sys
+import gc
 
 logger = logging.getLogger(__name__)
 
-# Constants - 4-bit quantized whisper-medium for faster speed
-MODEL_PATH = "mlx-community/whisper-medium-mlx-4bit"
+# Constants
+HF_MODEL_PATH = "mlx-community/distil-whisper-large-v3"
+
 SAMPLE_RATE = 16000
 SOUND_FILE = "/System/Library/Sounds/Pop.aiff"
 SILENCE_THRESHOLD = 0.015  # RMS amplitude below which is considered silence
 SILENCE_DURATION = 5.0    # Seconds of silence to trigger auto-stop
+MODEL_UNLOAD_TIMEOUT = 300 # Unload model after 5 minutes of inactivity
 
 class AudioRecorder:
     def __init__(self):
@@ -33,7 +37,11 @@ class AudioRecorder:
         self._model_dir = None  # Cached resolved model path
         self._preloaded_sound = None  # Pre-loaded sound effect
         self._preloaded_sound = None  # Pre-loaded sound effect
+        self._preloaded_sound = None  # Pre-loaded sound effect
         self._processing_start_time = None  # For latency tracking
+        
+        # Model Unloading Timer
+        self._unload_timer = None
         
         # Silence detection
         self._silence_start_time = None
@@ -71,11 +79,19 @@ class AudioRecorder:
         self._initialize_models()
 
     def _initialize_models(self):
-        logger.info(f"Loading MLX Whisper Model ({MODEL_PATH})...")
+        # Resolve model path (prefer local)
+        model_path_str = self._resolve_model_path()
+        
+        logger.info(f"Loading MLX Whisper Model ({model_path_str})...")
         try:
-            from huggingface_hub import snapshot_download
-            model_dir = Path(snapshot_download(MODEL_PATH))
-            self._model_dir = str(model_dir)  # Cache for reuse
+            if os.path.exists(model_path_str):
+                self._model_dir = model_path_str
+                model_dir = Path(model_path_str)
+
+            else:
+                from huggingface_hub import snapshot_download
+                model_dir = Path(snapshot_download(model_path_str))
+                self._model_dir = str(model_dir)  # Cache for reuse
             
             weights_path = model_dir / "weights.safetensors"
             model_path_file = model_dir / "model.safetensors"
@@ -100,6 +116,48 @@ class AudioRecorder:
         except Exception as e:
             logger.error(f"Model initialization failed: {e}", exc_info=True)
             self._handle_error("Model Init Failed")
+
+    def unload_model(self):
+        """Unload the MLX Whisper model from memory."""
+        try:
+            # mlx_whisper.transcribe is a function, so we access the module via sys.modules
+            # to reach the ModelHolder class designed for caching
+            if "mlx_whisper.transcribe" in sys.modules:
+                model_holder = sys.modules["mlx_whisper.transcribe"].ModelHolder
+                if model_holder.model is not None:
+                    logger.info("Unloading Whisper model to free memory...")
+                    model_holder.model = None
+                    import mlx.core as mx
+                    try:
+                         mx.clear_cache()
+                    except AttributeError:
+                         mx.metal.clear_cache()
+                    gc.collect()
+                    logger.info("Whisper model unloaded.")
+        except Exception as e:
+            logger.error(f"Failed to unload model: {e}")
+
+    def _schedule_unload(self):
+        """Schedule model unload after timeout."""
+        self._cancel_unload()
+        self._unload_timer = threading.Timer(MODEL_UNLOAD_TIMEOUT, self.unload_model)
+        self._unload_timer.start()
+
+    def _cancel_unload(self):
+        """Cancel pending model unload."""
+        if self._unload_timer:
+            self._unload_timer.cancel()
+
+            self._unload_timer = None
+
+    def _resolve_model_path(self):
+        """Check for local model, fallback to HF."""
+        # Check standard local location relative to this file
+        # zerog/core/recorder.py -> zerog/core -> zerog -> root -> mlx_models
+        local_path = Path(__file__).parent.parent.parent / "mlx_models" / "distil-large-v3-4-bit"
+        if local_path.exists():
+            return str(local_path)
+        return HF_MODEL_PATH
 
     def on_state_change(self, state, data):
         if state == AppState.RECORDING:
@@ -150,6 +208,9 @@ class AudioRecorder:
         if self.reset_timer:
             self.reset_timer.cancel()
             self.reset_timer = None
+            
+        # Cancel any pending unload when we start using the model
+        self._cancel_unload()
 
         with self._lock:
             if self.recording: 
@@ -236,8 +297,10 @@ class AudioRecorder:
             logger.info(f"Collected {len(audio_data)} chunks in {collect_duration*1000:.1f}ms. Shape: {audio_np.shape}")
             
             start_t = time.time()
+
             with self._lock:
-                model_path = self._model_dir if self._model_dir else MODEL_PATH
+                # Use resolved model path
+                model_path = self._model_dir if self._model_dir else self._resolve_model_path()
                 result = mlx_whisper.transcribe(
                     audio_np, 
                     path_or_hf_repo=model_path,
@@ -275,10 +338,15 @@ class AudioRecorder:
             else:
                 logger.info("Whisper returned empty text.")
                 state_machine.set_state(AppState.IDLE)
+            
+            # Schedule unload after successful processing
+            self._schedule_unload()
 
         except Exception as e:
             logger.error(f"Transcription Error: {e}", exc_info=True)
             self._handle_error("Processing Failed")
+            # Also schedule unload on error to not leave it hanging
+            self._schedule_unload()
 
     def _handle_error(self, message):
         state_machine.set_state(AppState.ERROR, error=message)

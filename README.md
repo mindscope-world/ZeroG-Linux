@@ -134,6 +134,10 @@ python -m pytest tests/
 
 ## 📅 Captain's Log
 
+### [v0.9.1] - 2026-01-03
+- **Hyper-Speed**: Switched to `distil-whisper-large-v3` (4-bit). Transcription time reduced by ~400%.
+- **Local Priority**: System now prioritizes local models if available.
+
 ### [v0.9.0] - 2026-01-03
 - **Rebrand**: Initiated "ZeroG" protocol.
 - **Brand Guide**: Published `BRANDING.md` for all contributors.

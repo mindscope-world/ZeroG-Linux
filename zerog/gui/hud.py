@@ -299,6 +299,30 @@ class HUDController(Cocoa.NSObject):
             
         return self
 
+    def update_position(self):
+        """Update HUD position based on current mouse location."""
+        # Find screen with mouse
+        mouse_loc = Cocoa.NSEvent.mouseLocation()
+        target_screen = None
+        
+        for screen in Cocoa.NSScreen.screens():
+            if Cocoa.NSPointInRect(mouse_loc, screen.frame()):
+                target_screen = screen
+                break
+        
+        # Fallback to main screen if mouse is off-screen (shouldn't happen often)
+        if not target_screen:
+            target_screen = Cocoa.NSScreen.mainScreen()
+            
+        visible_frame = target_screen.visibleFrame()
+        
+        # Recalculate positions relative to target screen
+        self.centerX = visible_frame.origin.x + (visible_frame.size.width - self.hudWidth) / 2
+        self.visibleY = visible_frame.origin.y + 120
+        self.hiddenY = visible_frame.origin.y - self.hudHeight - 50
+        
+        logger.debug(f"HUD Position Updated: Screen={target_screen.localizedName()}, CenterX={self.centerX}, VisibleY={self.visibleY}")
+
     def on_state_change(self, state, data):
         AppHelper.callAfter(self.updateUIForState_data_, state, data)
 
@@ -334,6 +358,9 @@ class HUDController(Cocoa.NSObject):
         if self.isVisible: 
             self.window.orderFrontRegardless()
             return
+
+        # Update position based on current mouse screen
+        self.update_position()
 
         self.isVisible = True
         logger.info(f"HUD sliding in to ({self.centerX}, {self.visibleY})...")

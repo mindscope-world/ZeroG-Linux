@@ -83,15 +83,17 @@ class TestAudioRecorder(unittest.TestCase):
 
     @patch('zerog.core.recorder.mlx_whisper.transcribe')
     @patch('zerog.core.recorder.state_machine')
-    def test_transcribe_and_type_no_gemini(self, mock_state_machine, mock_transcribe):
+    @patch('zerog.core.recorder.pyperclip.copy')
+    def test_transcribe_and_type_no_gemini(self, mock_copy, mock_state_machine, mock_transcribe):
         # We need to mock the local imports inside inject_text
         with patch('zerog.core.typer.FastTyper.type_text') as mock_type_text, \
-             patch('zerog.core.clipboard.ClipboardManager') as mock_clipboard:
+             patch('zerog.core.clipboard.ClipboardManager') as mock_clipboard, \
+             patch('zerog.core.recorder.Quartz') as mock_quartz:
             
             # Setup mock to return True for typing success
             mock_type_text.return_value = True
             
-            # Mock transcription result "Hello world" (length 11 < 1000)
+            # Mock transcription result "Hello world"
             mock_transcribe.return_value = {"text": "Hello world"}
             
             # Add dummy audio data to queue
@@ -101,16 +103,18 @@ class TestAudioRecorder(unittest.TestCase):
             self.recorder.transcribe_and_type(use_gemini=False)
             
             # Assert
-            # Should choose FastTyper path for short text
-            mock_type_text.assert_called_with("Hello world")
-            # Should NOT fallback to clipboard
-            mock_clipboard.snapshot.assert_not_called()
+            # Should NOT use FastTyper anymore
+            mock_type_text.assert_not_called()
+            # Should use clipboard
+            mock_clipboard.snapshot.assert_called_once()
+            mock_copy.assert_called_with("Hello world")
+            mock_quartz.CGEventCreateKeyboardEvent.assert_called()
     
     @patch('zerog.core.recorder.mlx_whisper.transcribe')
     @patch('zerog.core.recorder.state_machine')
     @patch('zerog.core.recorder.pyperclip.copy')
-    def test_transcribe_long_text_fallback(self, mock_copy, mock_state_machine, mock_transcribe):
-        """Test fallback strategy for long text"""
+    def test_transcribe_and_type_always_clipboard(self, mock_copy, mock_state_machine, mock_transcribe):
+        """Test that clipboard is used regardless of text length"""
         with patch('zerog.core.typer.FastTyper.type_text') as mock_type_text, \
              patch('zerog.core.clipboard.ClipboardManager') as mock_clipboard, \
              patch('zerog.core.recorder.Quartz') as mock_quartz:
@@ -124,15 +128,9 @@ class TestAudioRecorder(unittest.TestCase):
              self.recorder.transcribe_and_type(use_gemini=False)
              
              # Assert
-             # FastTyper should NOT be called because check happens before
              mock_type_text.assert_not_called()
-             
-             # Fallback path
              mock_clipboard.snapshot.assert_called_once()
              mock_copy.assert_called_with(long_text)
-             mock_clipboard.restore.assert_not_called() # Restore is async/timer based, confusing to test here without mocking timer
-             
-             # Verify Cmd+V posted
              mock_quartz.CGEventCreateKeyboardEvent.assert_called()
     @patch('zerog.core.recorder.state_machine')
     def test_recorder_callback(self, mock_state_machine):

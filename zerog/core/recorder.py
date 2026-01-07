@@ -304,15 +304,7 @@ class AudioRecorder:
         from .typer import FastTyper
         from .clipboard import ClipboardManager
 
-        # Strategy A: Fast Typing (Universal, Safe)
-        # Use for short-to-medium text where typing speed is acceptable.
-        # This is the most compatible method as it works at the HID level.
-        if len(text) < 1000:
-            if FastTyper.type_text(text):
-                return
-            logger.warning("FastTyper failed, falling back to clipboard injection.")
-
-        # Strategy B: Clipboard Injection (Fallback / Bulk)
+        # Use Clipboard Injection (Universal Strategy)
         # 1. Snapshot current clipboard
         # 2. Copy new text
         # 3. Paste

@@ -155,6 +155,7 @@ HTML_CONTENT = r"""
 
         console.log("JS Ready");
         window.setState('recording', 'Ready');
+        window.location.href = "app://jsReady";
     </script>
 </body>
 </html>
@@ -175,6 +176,9 @@ class HUDView(WebKit.WKWebView):
             # Set navigation delegate for intercepting URL schemes
             self.setNavigationDelegate_(self)
             
+            self.is_js_ready = False
+            self.pending_js_calls = []
+
             # Load content
             self.loadHTMLString_baseURL_(HTML_CONTENT, None)
             logger.info("HUDView initialized and HTML loaded.")
@@ -187,6 +191,17 @@ class HUDView(WebKit.WKWebView):
     def webView_decidePolicyForNavigationAction_decisionHandler_(self, webView, navigationAction, decisionHandler):
         """Intercept app:// custom schemes."""
         url = navigationAction.request().URL().absoluteString()
+        
+        if url.startswith("app://jsReady"):
+            self.is_js_ready = True
+            logger.info("HUD: JS Ready signal received.")
+            # Execute pending calls
+            for script in self.pending_js_calls:
+                self.evaluate_js(script)
+            self.pending_js_calls = []
+            decisionHandler(WebKit.WKNavigationActionPolicyCancel)
+            return
+
         if url.startswith("app://stopRecording"):
             logger.info("HUD: Stop button clicked.")
             app_delegate = Cocoa.NSApp.delegate()
@@ -207,6 +222,9 @@ class HUDView(WebKit.WKWebView):
                 logger.error(f"JS Error: {error}")
         
         def _run():
+            if not getattr(self, 'is_js_ready', False):
+                self.pending_js_calls.append(script)
+                return
             self.evaluateJavaScript_completionHandler_(script, _completion_handler)
         AppHelper.callAfter(_run)
 
@@ -230,6 +248,9 @@ class HUDView(WebKit.WKWebView):
 
     def updateAudioLevel_(self, level):
         """Forward audio level to JS bridge."""
+        if not getattr(self, 'is_js_ready', False):
+            return
+
         # Log RAW level to verify input
         # logger.debug(f"HUD RAW Level: {level}") 
         

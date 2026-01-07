@@ -119,16 +119,18 @@ class TestHUDIntegration(unittest.TestCase):
         from zerog.gui.hud import HUDView
         
         # Instantiate directly using Shim base
-        # Logic: HUDView.initWithFrame_(None) -> super().initWithFrame_configuration_ -> returns self
         view = HUDView()
-        # Manually call init logic if needed, but the class logic calls super()...
-        # Wait, python instantiation HUDView() doesn't call initWithFrame_ automatically. 
-        # But we are testing updateAudioLevel_, which depends on 'evaluate_js'.
         
         # Manually mock evaluate_js locally to intercept calls
         view.evaluate_js = MagicMock()
         
-        # Test audio update broadcasting
+        # Test Case 1: NOT ready (should not call)
+        view.is_js_ready = False
+        view.updateAudioLevel_(0.1)
+        view.evaluate_js.assert_not_called()
+        
+        # Test Case 2: Broadcating when ready
+        view.is_js_ready = True
         view.updateAudioLevel_(0.1) # 0.1 * 5 = 0.5
         view.evaluate_js.assert_called_with("window.applyShadow(0.50)")
         

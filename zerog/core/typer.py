@@ -25,8 +25,26 @@ class FastTyper:
         """
         if not text:
             return True
+        
+        # Log exactly what we are about to type to rule out string corruption
+        preview = text[:20] + "..." if len(text) > 20 else text
+        logger.info(f"FastTyper: Injecting '{preview}' ({len(text)} chars)")
             
         try:
+            # Deep modifier sweep: virtually release all modifier keys and the 'Q' hotkey.
+            # This ensures no hardware state (Cmd, Shift, Ctrl, Opt) interferes with the virtual unicode events.
+            # Keycodes: 54-62 are Cmd, Shift, Opt, Ctrl variants. 12 is Q.
+            for code in list(range(54, 64)) + [12]:
+                ev = Quartz.CGEventCreateKeyboardEvent(None, code, False)
+                if ev:
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
+
+            # Longer settling delay to ensure the OS HID system is completely idle after physical releases.
+            time.sleep(0.2)
+
+            # Use a consistent HID event source for state isolation
+            event_source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+
             # We use a dummy keycode (0) because the character codes are what matter.
             # 0 is 'a' on ANSI keyboards, but the Unicode string overrides it.
             # We need to create a discrete event for the system to attach the string to.
@@ -47,16 +65,20 @@ class FastTyper:
                 chunk_len = len(chunk)
                 
                 # Create a sterile key-down event
-                # 0 = Virtual key code (ignored because we set string)
-                # True = Key down
-                event_source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+                # Using the explicit event source ensures state consistency
                 key_down = Quartz.CGEventCreateKeyboardEvent(event_source, 0, True)
+                Quartz.CGEventSetFlags(key_down, 0) # EXPLICITLY clear all modifiers
                 
                 # Set the unicode string for this event
                 Quartz.CGEventKeyboardSetUnicodeString(key_down, chunk_len, chunk)
                 
                 # Post the event to the HID system
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, key_down)
+
+                # Create and post the corresponding key-up event
+                key_up = Quartz.CGEventCreateKeyboardEvent(event_source, 0, False)
+                Quartz.CGEventSetFlags(key_up, 0) # Clear flags here too
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, key_up)
                 
                 # Sleep briefly to let the target app process the chunk
                 if delay > 0:

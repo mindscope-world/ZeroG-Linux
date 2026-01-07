@@ -27,7 +27,9 @@ class TestFastTyper(unittest.TestCase):
         
         # Should have 3 chunks: "Hello" (5), " Worl" (5), "d" (1)
         self.assertEqual(mock_quartz.CGEventKeyboardSetUnicodeString.call_count, 3)
-        self.assertEqual(mock_quartz.CGEventPost.call_count, 3)
+        
+        # Total events: 11 (sweep) + 3 chunks * 2 (Down/Up) = 17
+        self.assertEqual(mock_quartz.CGEventPost.call_count, 17)
         
         # Verify calls
         calls = mock_quartz.CGEventKeyboardSetUnicodeString.call_args_list

@@ -82,7 +82,7 @@ def process_text(text):
         
         if response and response.text:
             processed = response.text.strip()
-            logger.info("Gemini successfully processed transcription.")
+            logger.info(f"Gemini successfully processed transcription: '{processed}'")
             return processed
         return text
     except Exception as e:

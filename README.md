@@ -1,148 +1,129 @@
-# 🧑‍🚀 ZeroG
+# 🛰️ ZeroG for Linux (Ubuntu 24.04)
+> Inspired by [ZeroG](https://github.com/antonynjoro/ZeroG)
 
-**Open Source Voice Typing for macOS**
+### "The voice typing tool so good, you'll forget how to type."
 
-> **"The voice typing tool so good, you'll forget how to type."**
+Welcome to the Linux sector. This version of ZeroG has been specifically refitted for **Ubuntu 24.04 (Noble)**, replacing Apple Silicon dependencies with a robust **PyQt6 GUI** and **Faster-Whisper** optimized for Intel i7 hardware.
+
+## Acknowledgement
+
+This project is a Linux adaptation of **ZeroG**, originally developed for macOS by **Antony Njoro**.
+All core ideas, architecture, and the original implementation credit go to the original author.
+
+Original repository:
+[https://github.com/antonynjoro/ZeroG](https://github.com/antonynjoro/ZeroG)
+
+This fork focuses on rebuilding, refactoring, and extending the application to run natively on Linux while preserving the original vision and functionality. Any modifications are made with respect to the original work.
 
 ---
 
-## 🛰️ The Manifesto
+## 🚀 Flight Systems (Linux Refit)
 
-**We don't type. We transmit.**
-
-ZeroG was born from the realization that typing is a bottleneck. It is a terrestrial limitation. We spent decades training our fingers to hit 100 Words Per Minute (WPM), only to realize that the speed of thought is infinite.
-
-ZeroG is not just a dictation tool. It is an evolutionary step. Just as an astronaut in orbit unlearns the physics of gravity—expecting a pen to float rather than fall—ZeroG users unlearn the friction of the keyboard.
-
-We are building the "Air Gap" for your thoughts: **Private. Local. Weightless.**
-
----
-
-## 🚀 Flight Systems (Features)
-
-- **Zero Friction**: Leverages **Apple Silicon MLX** for near-instant transcription. 0 WPM. 100% Output.
-- **Vacuum Sealed**: By default, **sound doesn't travel**. Audio is processed locally on your hardware. No data leaves the ship.
-- **Universal Comms**: Hold `Left Control` to transmit thought into *any* application.
-- **Auto-Pilot**: Press `Left Control`, speak freely, and let the **Silence Detection** sensor cut the feed when you're done.
-- **Gravity Assist** (Optional): Hold `Control + Q` to engage **Gemini** thrusters for grammar correction and formatting.
-- **Flight Recorder**: A native "Glass" HUD that floats above your dock.
-
-![ZeroG HUD](./ZeroG_Logo.png)
-*(Note: Visuals undergoing orbital refit)*
+* **Engine:** Powered by `Faster-Whisper` using `float32` compute for maximum stability on Intel Iris Xe and mobile CPUs.
+* **Sensors:** Features a **Stay-on-Top HUD** to bypass Wayland/X11 keyboard permission conflicts.
+* **Thrusters:** Text injection handled via `xdotool` for universal compatibility across Linux applications (Browsers, IDEs, Slack).
+* **Telemetry:** Launched in **Unbuffered Mode** (`python3 -u`) to provide real-time terminal diagnostics.
 
 ---
 
 ## 🛠️ Pre-Flight Check (Installation)
 
 ### Prerequisites
-- macOS 12+ (Apple Silicon recommended for optimal thrust)
-- Python 3.11+
-- [Git](https://git-scm.com/)
+
+* **Ubuntu 24.04 LTS** (Noble Tahr)
+* **Python 3.12+**
+* **X11 Session** (Recommended for `xdotool` reliability)
 
 ### 1. Board the Ship
+
 ```bash
 git clone https://github.com/antonynjoro/MacDictate.git
 cd MacDictate
-./setup.sh
+
 ```
 
-### 2. Clearance Codes (Permissions)
-Upon first launch, macOS will request clearance for:
-- **Microphone**: Audio input feed.
-- **Accessibility**: To detect the manual override key (Left Control).
-- **System Events**: To inject the payload (text) into target fields.
+### 2. Ignition (System Dependencies)
 
-### 3. Takeoff
-Launch the sequence:
-```bash
-python main.py
-```
-You will see a microphone icon in your Status Bar.
-- **Transmit**: Hold `Left Control`. The HUD will appear. Speak. Release to paste.
-- **Hands-Free**: Press `Left Control`. Speak. The system detects the vacuum (silence) and auto-cuts the feed.
-- **Polished Transmission**: Hold `Left Control + Q`. Speak. Release.
-
-### 4. Deploy Automator Beacon
-To run ZeroG without an open terminal channel:
-
-1. Open **Automator** -> New **Application**.
-2. Add **Run Shell Script**.
-3. Paste the ignition sequence:
+Ubuntu 24.04 requires specific Mesa and X11 utilities to handle AI model processing and window management. Run the following:
 
 ```bash
-# Path to your ZeroG launchpad
-PROJECT_DIR="/Users/antony/Documents/Projects/MacDictate"
+sudo apt update
+sudo apt install -y libosmesa6 libgl1 mesa-utils xdotool python3-tk
 
-# 1. Clear airspace
-pkill -f "main.py" || true
-sleep 0.5
-
-# 2. Navigate to launchpad
-cd "$PROJECT_DIR"
-
-# 3. Silent launch
-nohup ./.venv/bin/python main.py >/dev/null 2>&1 &
 ```
 
-4. Save as **ZeroG**.
+### 3. Virtual Environment Setup
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install numpy sounddevice faster-whisper pyperclip PyQt6
+
+```
 
 ---
 
-## 🕹️ Flight Controls (Configuration)
+## 🛫 Takeoff
 
-ZeroG uses Environment Variables for flight adjustments.
+To launch ZeroG with full terminal telemetry:
 
-### Flight Recorder (Logging)
-By default, the Black Box is **OFF** (`DEBUG=False`) for maximum privacy.
-To enable telemetry:
-1. Create `.env`.
-2. Add `DEBUG=True`.
-3. Reboot systems.
+```bash
+chmod +x run_zerog.sh
+./run_zerog.sh
 
-### Gravity Assist (Gemini API)
-For "Smart Formatting":
-1. Acquire Clearance Key from [Google AI Studio](https://aistudio.google.com/).
-2. Add to `.env`: `GOOGLE_API_KEY=your_key_here`
+```
+
+### Flight Controls
+
+* **Start Recording:** Click the **🔴 Start Recording** button. The HUD will stay on top of your other windows.
+* **Stop Recording:** Click the **⏹️ Stop Recording** button.
+* **Processing:** ZeroG will transcribe your voice using the `tiny` model for near-instant results on your i7 processor.
+* **Injection:** ZeroG automatically copies the text and uses `xdotool` to paste (Ctrl+V) into your active window.
+
+---
+
+## 🕹️ Configuration
+
+Adjust the system via `zerog/core/recorder.py`:
+
+* **Model Size:** Set to `tiny` for speed or `base` for higher accuracy.
+* **Compute Type:** Set to `float32` for Intel CPU stability or `int8` for lower RAM usage.
 
 ---
 
 ## ⚠️ Turbulence (Troubleshooting)
 
-### Payload Failure (Not Pasting)
-- Check **System Settings > Privacy & Security > Accessibility**.
-- If `ZeroG` (or Terminal/Python) is listed, **REMOVE** it (-) and re-add. Old clearance codes expire.
+### Status: Processing (Hanging)
 
-### Dead Air (No Audio)
-- Check **System Settings > Privacy & Security > Microphone**.
-- Ensure we have a lock on your comms.
+Your 11th Gen i7 requires the **OSMesa** libraries to prevent the AI engine from hanging. Ensure you have run:
+`sudo apt install libosmesa6 libgl1`
+
+### No Text Injected
+
+If the terminal shows a transcription but nothing appears in your app:
+
+1. Ensure `xdotool` is installed: `sudo apt install xdotool`.
+2. If you are on **Wayland**, `xdotool` may be restricted. At the Ubuntu login screen, click the gear icon and select **"Ubuntu on Xorg"**.
+
+### No Logs in Terminal
+
+The app is designed to run in **Unbuffered Mode**. Ensure you are launching via `./run_zerog.sh` which uses the `python3 -u` flag.
 
 ---
 
-## 🧪 R&D (Development)
+## 🧪 R&D (Diagnostics)
 
-### Run Diagnostics
+To verify your hardware is compatible with the AI engine without launching the GUI:
+
 ```bash
-python -m pytest tests/
+python3 debug_model.py
+
 ```
 
-### Blueprint
-- `zerog/core`: Core physics engine (State machine, Recorder).
-- `zerog/gui`: Visual interface (HUD).
-- `tests/`: Simulation scenarios.
+*If this returns "ALL SYSTEMS GO," your hardware and drivers are correctly configured.*
+
+**ZeroG: Don't let gravity hold back your thoughts.**
 
 ---
 
-## 📅 Captain's Log
-
-### [v0.9.0] - 2026-01-03
-- **Rebrand**: Initiated "ZeroG" protocol.
-- **Brand Guide**: Published `BRANDING.md` for all contributors.
-
-### [v0.8.1] - 2026-01-02
-- **Hands-Free**: Autos stop on silence.
-
-### [v0.8.0] - 2026-01-02
-- **Universal Injection**: "FastTyper" module for compatibility across all sectors.
-
----
-*ZeroG: Don't let gravity hold back your thoughts.*
+**Would you like me to help you create a `.desktop` file so you can launch ZeroG directly from your Ubuntu app drawer?**

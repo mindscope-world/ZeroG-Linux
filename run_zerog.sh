@@ -23,4 +23,4 @@ export QT_AUTO_SCREEN_SCALE_FACTOR=1
 
 # 5. Launch the application
 echo "🛰️ ZeroG is launching..."
-python3 main.py
+python3 -u main.py

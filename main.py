@@ -1,27 +1,25 @@
 import sys
 import os
+# Force unbuffered logs so you can finally see them in the terminal
+os.environ["PYTHONUNBUFFERED"] = "1"
+
 from PyQt6.QtWidgets import QApplication
 from zerog.gui.hud import LinuxHUD
-from zerog.core.state import state_machine
+from zerog.core.recorder import AudioRecorder
 
 def main():
-    # 1. Initialize the Qt Application
-    # This must happen before any GUI elements are created
+    print("🛰️  ZeroG is initializing...")
     app = QApplication(sys.argv)
-    app.setApplicationName("ZeroG")
-
-    # 2. Setup the GUI
-    # We create the window instance and show it immediately
+    
+    # Initialize the recorder FIRST
+    # This matches your debug_model.py success
+    recorder = AudioRecorder() 
+    
+    # Initialize the HUD
     hud = LinuxHUD()
     hud.show()
-
-    # 3. Print status for the user in the terminal
-    print("🛰️ ZeroG is in orbit.")
-    print("Click 'Start Recording' in the GUI to begin.")
-
-    # 4. Start the Event Loop
-    # This keeps the app running until you close the window.
-    # Without this line, the window would flash for a millisecond and disappear.
+    
+    print("🚀 ZeroG is in orbit. Ready for input.")
     sys.exit(app.exec())
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ Welcome to the Linux sector. This version of ZeroG has been specifically refitte
 
 ## Acknowledgement
 
-This project is a Linux adaptation of **ZeroG**, originally developed for macOS by **Antony Njoro**.
+This project is a Linux adaptation of **ZeroG**, originally developed for macOS by [**Antony Njoro**](https://github.com/antonynjoro).
 All core ideas, architecture, and the original implementation credit go to the original author.
 
 Original repository:

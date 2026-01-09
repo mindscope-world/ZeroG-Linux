@@ -1,30 +1,31 @@
-from setuptools import setup
-import sys
-
-# Fix for RecursionError in py2app modulegraph
-sys.setrecursionlimit(5000)
-
-APP = ['main.py']
-DATA_FILES = [
-    '.env',
-    'zerog/core/gemini_prompt.txt',
-]
-OPTIONS = {
-    'argv_emulation': True,
-    'plist': {
-        'LSUIElement': True,
-        'CFBundleName': 'ZeroG',
-        'CFBundleDisplayName': 'ZeroG',
-        'CFBundleIdentifier': 'com.antony.zerog',
-        'CFBundleVersion': '0.7.0',
-    },
-    'packages': ['zerog', 'sounddevice', 'numpy', 'mlx_whisper', 'Quartz', 'google'],
-    'includes': ['google.genai', 'certifi'],
-}
+# Original ZeroG Author: Antony Njoro
+# setup.py
+# Modified by: Paul Ndirangu
+"""
+Removes the Mac-specific py2app logic and focuses on the dependencies required for Ubuntu.
+"""
+from setuptools import setup, find_packages
 
 setup(
-    app=APP,
-    data_files=DATA_FILES,
-    options={'py2app': OPTIONS},
-    setup_requires=['py2app'],
+    name='ZeroG',
+    version='0.9.0',
+    description='Open Source Voice Typing for Ubuntu',
+    author='Paul Ndirangu',
+    packages=find_packages(),
+    include_package_data=True,
+    install_requires=[
+        'faster-whisper',
+        'sounddevice',
+        'numpy',
+        'pyperclip',
+        'pynput',
+        'google-genai',
+        'python-dotenv',
+        'certifi'
+    ],
+    entry_points={
+        'console_scripts': [
+            'zerog=main:main',
+        ],
+    },
 )

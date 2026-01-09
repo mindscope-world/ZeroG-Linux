@@ -28,7 +28,10 @@ if api_key:
         client = genai.Client(api_key=api_key)
         
         # Load the specific instructions for Gemini
-        prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_prompt.txt")
+        # prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_prompt.txt")
+        # This finds the directory where THIS file lives, then looks for the prompt
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        prompt_path = os.path.join(BASE_DIR, "gemini_prompt.txt")
         
         if os.path.exists(prompt_path):
             with open(prompt_path, "r") as f:

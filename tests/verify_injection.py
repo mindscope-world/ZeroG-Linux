@@ -1,62 +1,71 @@
+# tests/verify_injection.py
 import sys
 import time
-import threading
 import logging
+import subprocess
 from pathlib import Path
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from zerog.core.typer import FastTyper
-from zerog.core.clipboard import ClipboardManager
+from zerog.core.typer import FastTyper, ClipboardManager
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger("Verification")
 
-def test_fast_typer():
-    logger.info("Testing FastTyper...")
-    print("\n--- FastTyper Test ---")
-    print("Focus on a text field (e.g. this terminal) in 3 seconds to see typed output...")
+def check_dependencies():
+    """Ensure required Linux CLI tools are installed."""
+    for tool in ["xdotool", "xclip"]:
+        if subprocess.run(["which", tool], capture_output=True).returncode != 0:
+            logger.error(f"Missing dependency: {tool}. Please run: sudo apt install {tool}")
+            return False
+    return True
+
+def test_fast_injection():
+    logger.info("Testing FastTyper Injection (Snapshot -> Copy -> Paste -> Restore)...")
+    print("\n--- FastTyper Linux Test ---")
+    print("Focus on a text field (e.g. this terminal) in 3 seconds...")
     time.sleep(3)
     
-    text = "Hello from FastTyper! 🚀 (Universal Injection)"
-    success = FastTyper.type_text(text)
+    text = "Hello from ZeroG Linux! 🚀 (X11 Injection)"
+    # On Linux, FastTyper.inject handles the full logic
+    success = FastTyper.inject(text)
     
     if success:
-        logger.info("FastTyper commands posted successfully.")
+        logger.info("Injection sequence completed successfully.")
     else:
-        logger.error("FastTyper failed.")
+        logger.error("Injection failed. Check if xdotool and xclip are installed.")
 
 def test_clipboard_preservation():
-    logger.info("Testing Clipboard Preservation...")
+    logger.info("Testing Clipboard Preservation (using pyperclip/xclip)...")
     print("\n--- Clipboard Manager Test ---")
     
-    # 1. User manually copies something (optional, but we can simulate it)
-    print("Please copy some text or a file to your clipboard NOW.")
-    print("Waiting 5 seconds for you to copy something...")
+    print("Action Required: Please copy some text to your clipboard NOW.")
+    print("Waiting 5 seconds for you to copy...")
     time.sleep(5)
     
     # 2. Snapshot
-    logger.info("Taking snapshot...")
+    logger.info("Taking snapshot of your current clipboard...")
     snapshot = ClipboardManager.snapshot()
-    logger.info(f"Snapshot taken. Items: {len(snapshot) if snapshot else 0}")
+    logger.info(f"Captured: '{snapshot}'" if snapshot else "Clipboard was empty.")
     
     # 3. Clobber clipboard
-    import Cocoa
-    pb = Cocoa.NSPasteboard.generalPasteboard()
-    pb.clearContents()
-    pb.writeObjects_(["CLOBBERED CONTENT"])
-    logger.info("Clipboard clobbered with 'CLOBBERED CONTENT'. Verify manually if you want (Cmd+V).")
-    time.sleep(2)
+    import pyperclip
+    pyperclip.copy("--- CLOBBERED BY ZEROG ---")
+    logger.info("Clipboard overwritten. If you paste now, you will see the clobber text.")
+    time.sleep(3)
     
     # 4. Restore
-    logger.info("Restoring clipboard...")
+    logger.info("Restoring original content...")
     ClipboardManager.restore(snapshot)
-    logger.info("Clipboard restored. Try pasting now to verify your original content is back.")
+    logger.info("✅ Restored! Try pasting now to verify your original content is back.")
 
 if __name__ == "__main__":
+    if not check_dependencies():
+        sys.exit(1)
+        
     if len(sys.argv) > 1 and sys.argv[1] == "typer":
-        test_fast_typer()
+        test_fast_injection()
     elif len(sys.argv) > 1 and sys.argv[1] == "clipboard":
         test_clipboard_preservation()
     else:

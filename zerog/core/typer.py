@@ -1,92 +1,94 @@
-import Quartz
+# zerog/core/typer.py
+"""
+Linux doesn't have a unified "System Events" framework like macOS, 
+the most reliable way to inject text on Ubuntu is to combine a clipboard manager (using xclip) 
+with a keystroke simulator (xdotool).
+
+xdotool: Handles the keyboard simulation (the 'V' in Ctrl+V)
+xclip: Allows pyperclip to interact with the Linux clipboard
+"""
+import subprocess
 import time
+import pyperclip
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
+class ClipboardManager:
+    """Linux implementation for clipboard state management using xclip."""
+    
+    @staticmethod
+    def snapshot():
+        """Captures the current clipboard content using pyperclip."""
+        try:
+            return pyperclip.paste()
+        except Exception as e:
+            logger.error(f"Clipboard snapshot failed: {e}")
+            return ""
+
+    @staticmethod
+    def restore(text_data):
+        """Restores the clipboard to a previous string state."""
+        try:
+            if text_data:
+                pyperclip.copy(text_data)
+                logger.debug("Clipboard restored.")
+        except Exception as e:
+            logger.error(f"Clipboard restore failed: {e}")
+
 class FastTyper:
     """
-    Universally injects text by simulating hardware keyboard events at the OS level.
-    Uses CGEventKeyboardSetUnicodeString to type characters without relying on Accessibility APIs.
+    Linux-native text injector.
+    Strategy: Copy text to clipboard -> Trigger Ctrl+V via xdotool -> Restore clipboard.
     """
     
     @staticmethod
-    def type_text(text: str, chunk_size: int = 20, delay: float = 0.002) -> bool:
+    def inject(text: str) -> bool:
         """
-        Types text by posting keyboard events with Unicode payloads.
-        
-        Args:
-            text: The string to type.
-            chunk_size: Number of characters to attach to each event.
-            delay: Safety sleep (in seconds) between chunks to prevent buffer overflows.
-            
-        Returns:
-            bool: True if events were successfully posted, False otherwise.
+        The primary injection entry point for Linux.
         """
         if not text:
             return True
-        
-        # Log exactly what we are about to type to rule out string corruption
-        preview = text[:20] + "..." if len(text) > 20 else text
-        logger.info(f"FastTyper: Injecting '{preview}' ({len(text)} chars)")
-            
+
+        logger.info(f"FastTyper: Injecting {len(text)} characters.")
+
         try:
-            # Deep modifier sweep: virtually release all modifier keys and the 'Q' hotkey.
-            # This ensures no hardware state (Cmd, Shift, Ctrl, Opt) interferes with the virtual unicode events.
-            # Keycodes: 54-62 are Cmd, Shift, Opt, Ctrl variants. 12 is Q.
-            for code in list(range(54, 64)) + [12]:
-                ev = Quartz.CGEventCreateKeyboardEvent(None, code, False)
-                if ev:
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
+            # 1. Snapshot the user's current work
+            original_content = ClipboardManager.snapshot()
 
-            # Longer settling delay to ensure the OS HID system is completely idle after physical releases.
-            time.sleep(0.2)
+            # 2. Stage the new transcription
+            pyperclip.copy(text)
+            
+            # 3. Small delay to ensure the OS clipboard manager registers the change
+            time.sleep(0.1)
 
-            # Use a consistent HID event source for state isolation
-            event_source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+            # 4. Use xdotool to simulate the paste command
+            # This works across almost all Linux GUI apps (Browsers, IDEs, Slack, etc.)
+            subprocess.run([
+                "xdotool", "key", "ctrl+v"
+            ], check=True)
 
-            # We use a dummy keycode (0) because the character codes are what matter.
-            # 0 is 'a' on ANSI keyboards, but the Unicode string overrides it.
-            # We need to create a discrete event for the system to attach the string to.
+            # 5. Restore the original clipboard in a background thread 
+            # to prevent blocking the UI, with enough delay for the paste to finish.
+            threading.Timer(0.8, lambda: ClipboardManager.restore(original_content)).start()
             
-            # The strategy:
-            # 1. Create a "null" keyboard event (keydown).
-            # 2. Attach a chunk of unicode string to it.
-            # 3. Post it.
-            # 4. Create a corresponding keyup event (optional, but good practice).
-            
-            # Note: CGEventKeyboardSetUnicodeString handles the string mapping.
-            
-            text_len = len(text)
-            logger.debug(f"FastTyper: Typing {text_len} chars in chunks of {chunk_size}...")
-            
-            for i in range(0, text_len, chunk_size):
-                chunk = text[i : i + chunk_size]
-                chunk_len = len(chunk)
-                
-                # Create a sterile key-down event
-                # Using the explicit event source ensures state consistency
-                key_down = Quartz.CGEventCreateKeyboardEvent(event_source, 0, True)
-                Quartz.CGEventSetFlags(key_down, 0) # EXPLICITLY clear all modifiers
-                
-                # Set the unicode string for this event
-                Quartz.CGEventKeyboardSetUnicodeString(key_down, chunk_len, chunk)
-                
-                # Post the event to the HID system
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, key_down)
-
-                # Create and post the corresponding key-up event
-                key_up = Quartz.CGEventCreateKeyboardEvent(event_source, 0, False)
-                Quartz.CGEventSetFlags(key_up, 0) # Clear flags here too
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, key_up)
-                
-                # Sleep briefly to let the target app process the chunk
-                if delay > 0:
-                    time.sleep(delay)
-            
-            logger.debug("FastTyper: Completed.")
             return True
-            
-        except Exception as e:
-            logger.error(f"FastTyper failed: {e}", exc_info=True)
+
+        except subprocess.CalledProcessError:
+            logger.error("xdotool command failed. Is it installed?")
             return False
+        except Exception as e:
+            logger.error(f"Injection failed: {e}", exc_info=True)
+            return False
+
+    @staticmethod
+    def type_text(text: str):
+        """
+        Alternative 'Slow' typing mode if paste is blocked.
+        Simulates individual keystrokes.
+        """
+        try:
+            subprocess.run(["xdotool", "type", "--delay", "5", text], check=True)
+        except Exception as e:
+            logger.error(f"Slow typing failed: {e}")

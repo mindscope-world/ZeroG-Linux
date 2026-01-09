@@ -1,80 +1,34 @@
-mac_dictate.log
-.env
-# System Files
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-*.swp
-*.swo
-*~
-
-# IDEs and Editors
-.vscode/
-.idea/
-.project
-.classpath
-.settings/
-*.sublime-project
-*.sublime-workspace
-
-# Dependencies and Environments
-node_modules/
-bower_components/
-jspm_packages/
-vendor/
-venv/
-.venv/
-env/
-mlx_models/
+# --- Python ---
 __pycache__/
-*.pyc
-.ipynb_checkpoints/
-
-# Build and Output
-dist/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
 build/
-out/
-target/
-bin/
-obj/
-cmake-build-debug/
-cmake-build-release/
-*.exe
-*.dll
-*.so
-*.dylib
+dist/
+*.egg-info/
 
-# Logs and Temporary Files
+# --- Environment & Secrets ---
+.env
+!.env.example
+
+# --- Logs & Telemetry ---
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.tmp/
-.temp/
-tmp/
-temp/
-.pytest_cache/
-.coverage
-htmlcov/
-.cache/
+nohup.out
 
-# Security and Credentials
-*.pem
-*.key
-*.cert
-*.p12
-*.pfx
-.htpasswd
+# --- OS Specific ---
+.DS_Store
+.directory
+.Thumbs.db
 
-# Personal
-journal/
-mlx-examples/
+# --- Media & Assets ---
+# We ignore the assets folder because the generate_assets.py 
+# recreates it on the user's local machine.
+zerog/assets/
 
-
-
-
+# --- Whisper Models ---
+# If you download models locally rather than via HuggingFace cache
+models/
+*.bin
+*.pt

@@ -1,0 +1,5 @@
+include .env
+include zerog/core/gemini_prompt.txt
+recursive-include zerog/core *.txt
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

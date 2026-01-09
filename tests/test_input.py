@@ -1,156 +1,92 @@
 import unittest
 from unittest.mock import MagicMock, patch
-import time
 from zerog.core.state import AppState
 
-# We need to mock Quartz properly since it might not exist in test env or we want to control it
-# But we import KeyMonitor which imports Quartz.
-# If Quartz is not installed in the environment running tests (it is here), it's fine.
-# We will patch it regardless.
+# Import the Linux-compatible KeyMonitor (using pynput)
+from zerog.core.input import KeyMonitor
 
-from zerog.core.input import KeyMonitor, KEY_CODE_CTRL, KEY_CODE_Q
-
-class TestKeyMonitor(unittest.TestCase):
+class TestKeyMonitorLinux(unittest.TestCase):
     
-    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
-    @patch('zerog.core.input.state_machine')
-    def test_run_idle_to_recording(self, mock_state_machine, mock_key_state):
-        monitor = KeyMonitor()
-        monitor.running = True
+    def setUp(self):
+        # We patch the state_machine at the module level
+        self.patcher = patch('zerog.core.input.state_machine')
+        self.mock_sm = self.patcher.start()
+        self.monitor = KeyMonitor()
         
-        # Setup: State is IDLE
-        mock_state_machine.current_state = AppState.IDLE
+        # Define some common key mocks
+        self.ctrl_key = MagicMock()
+        # In pynput, keyboard.Key.ctrl_l is an enum-like object
+        # We'll simulate it by comparing equality in our mocks
         
-        # Scenario: Ctrl Pressed
-        # 1. First poll: Not pressed
-        # 2. Second poll: Pressed -> Transition to RECORDING
-        # 3. Third poll: Pressed -> No change
-        # 4. Stop
-        
-        # Note: KeyMonitor.run loop is infinite. We need to inject a way to break it or test logic differently.
-        # Since we can't easily break the while loop without modifying code, 
-        # let's test the logic pieces if possible, or threading approach with a side_effect that stops it.
-        
-        # Testing logic step-by-step by extracting logic would be better, but refactoring not allowed by prompt "just organization".
-        # So we will subclass or just run one iteration logic? 
-        # Actually, let's just make the loop condition run once.
-        
-        # Better: run is a loop. Let's patch 'time.sleep' to raise an exception to break the loop? 
-        # Or set monitor.running = False in a side_effect of something called inside loop.
-        
-        # Logic test:
-        # Loop 1: Ctrl pressed.
-        def key_side_effect(state, keycode):
-            if keycode == KEY_CODE_CTRL:
-                return True
-            return False
-        mock_key_state.side_effect = key_side_effect
-        
-        # We need to test the logic INSIDE run.
-        # Let's extract the body of the loop for testing if we could, but we can't refactor.
-        # So we will run the thread for a tiny bit? No, that's flaky.
-        
-        # Alternative: We can mock 'state_machine.current_state' property.
-        
-        # Let's try to verify the logic by calling a single pass manual simulation 
-        # OR by setting running=False after the first pass via a mock side effect.
-        
-        pass
+    def tearDown(self):
+        self.patcher.stop()
 
-    # A better approach for `test_input.py` without refactoring `run()`:
-    # We can rely on `time.sleep` being called at the end of the loop.
-    # We patch `time.sleep` to set `self.running = False`.
-    
-    @patch('zerog.core.input.state_machine')
-    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
-    @patch('zerog.core.input.time.sleep')
-    def test_transition_idle_to_recording(self, mock_sleep, mock_key_state, mock_sm):
-        monitor = KeyMonitor()
-        mock_sm.current_state = AppState.IDLE
+    def test_on_press_ctrl_starts_recording(self):
+        """Test that pressing Left Control transitions IDLE -> RECORDING."""
+        from pynput import keyboard
+        self.mock_sm.current_state = AppState.IDLE
         
-        # Ctrl is pressed
-        mock_key_state.side_effect = lambda s, k: True if k == KEY_CODE_CTRL else False
+        # Action: Simulate pressing Ctrl_L
+        self.monitor.on_press(keyboard.Key.ctrl_l)
         
-        # Run loop once
-        def stop_loop(*args):
-            monitor.running = False
-        mock_sleep.side_effect = stop_loop
-        
-        monitor.run()
-        
-        mock_sm.set_state.assert_called_once_with(AppState.RECORDING)
-        self.assertTrue(monitor.was_pressed)
+        # Assertions
+        self.assertTrue(self.monitor.ctrl_pressed)
+        self.mock_sm.set_state.assert_called_once_with(AppState.RECORDING)
+        self.assertIsNotNone(self.monitor.recording_start_time)
 
-    @patch('zerog.core.input.state_machine')
-    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
-    @patch('zerog.core.input.time.sleep')
-    def test_transition_recording_to_processing(self, mock_sleep, mock_key_state, mock_sm):
-        monitor = KeyMonitor()
+    def test_on_press_q_activates_gemini(self):
+        from pynput import keyboard
+        self.mock_sm.current_state = AppState.RECORDING
+        self.monitor.ctrl_pressed = True
         
-        # Setup: Already recording and was_pressed=True (user holding info)
-        monitor.was_pressed = True
-        mock_sm.current_state = AppState.RECORDING
+        # FIX: Initialize the mock context as a real dict so it stores values
+        self.mock_sm.context = {'use_gemini': False}
         
-        # Ctrl is released
-        mock_key_state.return_value = False
+        q_key = MagicMock()
+        q_key.char = 'q'
         
-        def stop_loop(*args):
-            monitor.running = False
-        mock_sleep.side_effect = stop_loop
+        self.monitor.on_press(q_key)
         
-        monitor.run()
-        
-        # Should transition to PROCESSING with gemini=False (default)
-        mock_sm.set_state.assert_called_once_with(AppState.PROCESSING, use_gemini=False)
-        self.assertFalse(monitor.was_pressed)
+        self.assertEqual(self.mock_sm.context['use_gemini'], True)
 
-    @patch('zerog.core.input.state_machine')
-    @patch('zerog.core.input.Quartz.CGEventSourceKeyState')
-    @patch('zerog.core.input.time.sleep')
-    def test_transition_recording_with_q(self, mock_sleep, mock_key_state, mock_sm):
-        monitor = KeyMonitor()
-        monitor.was_pressed = True
-        mock_sm.current_state = AppState.RECORDING
+    def test_on_release_ctrl_triggers_processing(self):
+        """Test that releasing Ctrl triggers the PROCESSING state."""
+        from pynput import keyboard
+        self.mock_sm.current_state = AppState.RECORDING
+        self.monitor.ctrl_pressed = True
+        self.monitor.q_pressed = True # Gemini was toggled
         
-        # Scenario: Ctrl Pressed AND Q Pressed
-        # We need two iterations here? 
-        # Iteration 1: Ctrl + Q pressed -> sets q_pressed_during_session
-        # Iteration 2: Ctrl Released -> triggers processing with gemini=True
+        # Action: Release Ctrl_L
+        self.monitor.on_release(keyboard.Key.ctrl_l)
         
-        # We can implement a side_effect dealing with multiple calls to KeyState and Sleep.
+        # Assertions
+        self.assertFalse(self.monitor.ctrl_pressed)
+        self.mock_sm.set_state.assert_called_once_with(
+            AppState.PROCESSING, 
+            use_gemini=True
+        )
+
+    def test_safety_timeout(self):
+        """Verify the watchdog stops recording if it exceeds MAX_RECORDING_SECONDS."""
+        import time
+        from zerog.core.input import MAX_RECORDING_SECONDS
         
-        # KeyState calls: 
-        # Iter 1: Check Ctrl (True), Check Q (True)
-        # Iter 2: Check Ctrl (False)
+        self.mock_sm.current_state = AppState.RECORDING
+        # Set start time to far in the past
+        self.monitor.recording_start_time = time.time() - (MAX_RECORDING_SECONDS + 1)
+        self.monitor.running = True
         
-        # Sequence of calls to CGEventSourceKeyState:
-        # 1. (Iter 1) Ctrl -> True
-        # 2. (Iter 1) Q -> True
-        # 3. (Iter 2) Ctrl -> False
+        # We manually trigger the internal timeout check logic
+        # (Usually this runs in a thread, but we call the logic directly for the test)
+        with patch('zerog.core.input.time.sleep', side_effect=[None, Exception("Stop Loop")]):
+            try:
+                self.monitor._check_timeout()
+            except Exception:
+                pass # Expected to break the infinite loop
         
-        key_responses = [True, True, False] # Ctrl, Q, Ctrl(released)
-        
-        def key_side_effect(state, keycode):
-            if not key_responses: return False
-            val = key_responses.pop(0)
-            return val
-            
-        mock_key_state.side_effect = key_side_effect
-        
-        # Sleep calls: control loop count
-        # Sleep 1: Continue
-        # Sleep 2: Stop
-        sleep_counts = [0]
-        def sleep_side_effect(*args):
-            sleep_counts[0] += 1
-            if sleep_counts[0] >= 2:
-                monitor.running = False
-        mock_sleep.side_effect = sleep_side_effect
-        
-        monitor.run()
-        
-        # Verify
-        mock_sm.set_state.assert_called_with(AppState.PROCESSING, use_gemini=True)
+        # Assertions
+        self.mock_sm.set_state.assert_called_with(AppState.PROCESSING, use_gemini=False)
+        self.assertIsNone(self.monitor.recording_start_time)
 
 if __name__ == '__main__':
     unittest.main()

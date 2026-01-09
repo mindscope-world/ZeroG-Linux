@@ -1,26 +1,26 @@
 #!/bin/bash
 
-# --- ZeroG Startup Wrapper ---
-# This script is designed to be used with macOS Automator to run 
-# ZeroG in the background as a "Service".
+# 1. Navigate to the project directory (optional, but good practice)
+cd "$(dirname "$0")"
 
-# 1. Terminate any previous instances of the app
-# 'pkill -f' stops any process with "main.py" in the name so we don't have two running.
-# '|| true' means "don't fail if there wasn't an instance running already".
-pkill -f "main.py" || true
+# 2. Activate the virtual environment
+if [ -d "venv" ]; then
+    source venv/bin/activate
+elif [ -d ".venv" ]; then
+    source .venv/bin/activate
+else
+    echo "❌ Error: Virtual environment (venv) not found."
+    exit 1
+fi
 
-# 2. Brief pause to ensure the microphone and system resources are fully released
-sleep 0.5
+# 3. Force X11/XCB to prevent the GUI from disappearing on Ubuntu 24.04
+export DISPLAY=:0
+export QT_QPA_PLATFORM=xcb
+export QT_XCB_GL_INTEGRATION=none
 
-# Path to your ZeroG project
-PROJECT_DIR="/Users/antony/Documents/Projects/MacDictate"
+# 4. Optional: Fix scaling for high-resolution Lenovo screens
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
 
-# 1. Stop any existing instance
-pkill -f "main.py" || true
-sleep 0.5
-
-# 2. Go to directory
-cd "$PROJECT_DIR"
-
-# 3. Launch quietly in background
-nohup ./.venv/bin/python main.py >/dev/null 2>&1 &
+# 5. Launch the application
+echo "🛰️ ZeroG is launching..."
+python3 main.py

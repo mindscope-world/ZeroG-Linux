@@ -1,25 +1,25 @@
-import Cocoa
-import objc
+import sys
+from PyQt6.QtWidgets import QApplication
 from zerog.core.recorder import AudioRecorder
 from zerog.core.input import KeyMonitor
-from zerog.gui.menu import StatusMenuController
-from zerog.gui.hud import HUDController
-
-class ZeroGApp(Cocoa.NSObject):
-    def applicationDidFinishLaunching_(self, notification):
-        # Initialize Core Logic
-        self.recorder = AudioRecorder()
-        self.key_monitor = KeyMonitor()
-        self.key_monitor.start()
-        
-        # Initialize UI
-        self.menu_controller = StatusMenuController.alloc().init()
-        self.hud_controller = HUDController.alloc().init()
-        
-        print("ZeroG Started (Native Mode)")
+from zerog.core.menu import StatusMenuController
+from zerog.core.hud import HUDController
 
 def run():
-    app = Cocoa.NSApplication.sharedApplication()
-    delegate = ZeroGApp.alloc().init()
-    app.setDelegate_(delegate)
-    app.run()
+    # Initialize the Qt Application Loop
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
+    # Initialize Core (Non-UI)
+    recorder = AudioRecorder()
+    key_monitor = KeyMonitor()
+    key_monitor.start()
+    
+    # Initialize UI (PyQt6 versions)
+    menu_controller = StatusMenuController(app)
+    hud_controller = HUDController()
+    
+    print("ZeroG Started (Linux Mode)")
+    
+    # Start the event loop
+    sys.exit(app.exec())

@@ -1,35 +1,28 @@
-import logging
+import sys
 import os
-import zerog.app
-from dotenv import load_dotenv
-import certifi
+from PyQt6.QtWidgets import QApplication
+from zerog.gui.hud import LinuxHUD
+from zerog.core.state import state_machine
 
-# Fix for SSL: CERTIFICATE_VERIFY_FAILED on macOS
-os.environ["SSL_CERT_FILE"] = certifi.where()
+def main():
+    # 1. Initialize the Qt Application
+    # This must happen before any GUI elements are created
+    app = QApplication(sys.argv)
+    app.setApplicationName("ZeroG")
 
-load_dotenv()
+    # 2. Setup the GUI
+    # We create the window instance and show it immediately
+    hud = LinuxHUD()
+    hud.show()
 
-# --- Configuration ---
-# Logging is enabled ONLY if DEBUG=True in .env (local)
-ENABLE_LOGGING = os.getenv("DEBUG", "False").lower() in ("true", "1")
+    # 3. Print status for the user in the terminal
+    print("🛰️ ZeroG is in orbit.")
+    print("Click 'Start Recording' in the GUI to begin.")
 
-def setup_logging():
-    logger = logging.getLogger()
-    
-    if ENABLE_LOGGING:
-        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mac_dictate.log")
-        logging.basicConfig(
-            filename=log_file,
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        # Also print to console for dev
-        console = logging.StreamHandler()
-        console.setLevel(logging.INFO)
-        logger.addHandler(console)
-    else:
-        logging.basicConfig(level=logging.WARNING)
+    # 4. Start the Event Loop
+    # This keeps the app running until you close the window.
+    # Without this line, the window would flash for a millisecond and disappear.
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
-    setup_logging()
-    zerog.app.run()
+    main()

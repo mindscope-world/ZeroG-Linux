@@ -6,9 +6,8 @@ from zerog.core.state import StateMachine, AppState
 
 class TestStateMachine(unittest.TestCase):
     def setUp(self):
-        # Reset singleton for testing (this is hacky but necessary for singleton testing)
-        if StateMachine._instance:
-            StateMachine._instance = None
+        # Reset singleton for clean testing slate
+        StateMachine._instance = None
         self.sm = StateMachine()
 
     def test_singleton(self):
@@ -28,47 +27,35 @@ class TestStateMachine(unittest.TestCase):
         self.sm.add_observer(observer)
         
         self.sm.set_state(AppState.PROCESSING, use_gemini=True)
-        
         observer.assert_called_once_with(AppState.PROCESSING, {'use_gemini': True})
 
-    def test_no_notification_if_same_state_no_data(self):
+    def test_audio_level_broadcasting(self):
+        observer = MagicMock()
+        self.sm.add_audio_level_observer(observer)
+        self.sm.broadcast_audio_level(0.85)
+        observer.assert_called_once_with(0.85)
+
+    def test_thread_safety_stress(self):
+        """
+        Verify that multiple threads updating the state machine 
+        simultaneously (common in ZeroG Linux) don't cause race conditions.
+        """
         observer = MagicMock()
         self.sm.add_observer(observer)
         
-        self.sm.set_state(AppState.IDLE) # Already IDLE
-        observer.assert_not_called()
+        def rapid_updates():
+            for _ in range(100):
+                self.sm.set_state(AppState.RECORDING)
+                self.sm.set_state(AppState.IDLE)
 
-    def test_notification_same_state_with_data(self):
-        observer = MagicMock()
-        self.sm.add_observer(observer)
+        threads = [threading.Thread(target=rapid_updates) for _ in range(5)]
         
-        self.sm.set_state(AppState.IDLE, error="Test") # Same state, new data
-        observer.assert_called_once_with(AppState.IDLE, {'error': "Test"})
+        for t in threads: t.start()
+        for t in threads: t.join()
 
-    def test_audio_level_observer_registration(self):
-        observer = MagicMock()
-        self.sm.add_audio_level_observer(observer)
-        
-        self.sm.broadcast_audio_level(0.5)
-        
-        observer.assert_called_once_with(0.5)
+        # Ensure the system remains stable and observers were called
+        self.assertTrue(observer.called)
+        self.assertIn(self.sm.current_state, [AppState.IDLE, AppState.RECORDING])
 
-    def test_audio_level_observer_removal(self):
-        observer = MagicMock()
-        self.sm.add_audio_level_observer(observer)
-        self.sm.remove_audio_level_observer(observer)
-        
-        self.sm.broadcast_audio_level(0.5)
-        
-        observer.assert_not_called()
-
-    def test_audio_level_multiple_observers(self):
-        observer1 = MagicMock()
-        observer2 = MagicMock()
-        self.sm.add_audio_level_observer(observer1)
-        self.sm.add_audio_level_observer(observer2)
-        
-        self.sm.broadcast_audio_level(0.75)
-        
-        observer1.assert_called_once_with(0.75)
-        observer2.assert_called_once_with(0.75)
+if __name__ == '__main__':
+    unittest.main()

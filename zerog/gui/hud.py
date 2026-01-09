@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QPushButton, QWidget, QLabel
 from PyQt6.QtCore import Qt, pyqtSlot
 from zerog.core.state import state_machine, AppState
+from PyQt6.QtCore import QTimer
 
 class LinuxHUD(QMainWindow):
     def __init__(self):
@@ -45,17 +46,23 @@ class LinuxHUD(QMainWindow):
             # Stop recording and start processing audio
             state_machine.set_state(AppState.PROCESSING)
 
+    # Inside the LinuxHUD class:
     def on_state_changed(self, state, data=None):
-        """Update the UI colors and text when state changes"""
         self.status_label.setText(f"STATUS: {state.name}")
         
-        if state == AppState.RECORDING:
-            self.action_button.setText("⏹️ Stop & Transcribe")
-            self.action_button.setStyleSheet("background-color: #ffcccc; color: black;")
-        elif state == AppState.PROCESSING:
+        if state == AppState.PROCESSING:
             self.action_button.setText("⏳ Processing...")
             self.action_button.setEnabled(False)
+            # Safety: Reset if stuck for 30 seconds
+            QTimer.singleShot(30000, self.reset_if_stuck)
+            
         elif state == AppState.IDLE:
             self.action_button.setText("🔴 Start Recording")
             self.action_button.setEnabled(True)
             self.action_button.setStyleSheet("")
+    
+    def reset_if_stuck(self):
+        if state_machine.current_state == AppState.PROCESSING:
+            self.status_label.setText("STATUS: ERROR/TIMEOUT")
+            self.action_button.setEnabled(True)
+            self.action_button.setText("🔄 Try Again")

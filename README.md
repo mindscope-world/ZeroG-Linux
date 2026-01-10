@@ -73,6 +73,17 @@ chmod +x run_zerog.sh
 
 ```
 
+---
+
+### Clearance Codes (Permissions)
+
+Linux requires your user to be part of specific hardware groups to access the keyboard and microphone without `root` privileges. **You must reboot your machine after the setup script finishes** for these changes to take effect:
+
+* `input`: For detecting the **Left Control** hotkey.
+* `audio`: For capturing your voice.
+
+---
+
 ### Flight Controls
 
 * **Start Recording:** Click the **🔴 Start Recording** button. The HUD will stay on top of your other windows.
@@ -84,6 +95,11 @@ chmod +x run_zerog.sh
 
 ## 🕹️ Configuration
 
+The system uses a `.env` file for adjustments:
+
+* `GOOGLE_API_KEY`: Add your key from Google AI Studio to enable Gemini thrusters.
+* `DEBUG=True`: Enable this to see telemetry in `zerog.log`.
+
 Adjust the system via `zerog/core/recorder.py`:
 
 * **Model Size:** Set to `tiny` for speed or `base` for higher accuracy.
@@ -93,23 +109,59 @@ Adjust the system via `zerog/core/recorder.py`:
 
 ## ⚠️ Turbulence (Troubleshooting)
 
+### Wayland Support
+
+Ubuntu's default "Wayland" session has high security protocols that prevent global key-listening. If ZeroG doesn't respond to the Control key:
+
+1. Log out of Ubuntu.
+2. Click your name.
+3. Click the **Gear Icon** in the bottom right corner.
+4. Select **"Ubuntu on Xorg"**.
+5. Log back in.
+
 ### Status: Processing (Hanging)
 
-Your 11th Gen i7 requires the **OSMesa** libraries to prevent the AI engine from hanging. Ensure you have run:
+Ensure you have run:
 `sudo apt install libosmesa6 libgl1`
 
-### No Text Injected
+### No Text Injection
+
+Ensure `xdotool` is functioning. ZeroG uses it to simulate `Ctrl+V`.
 
 If the terminal shows a transcription but nothing appears in your app:
 
 1. Ensure `xdotool` is installed: `sudo apt install xdotool`.
 2. If you are on **Wayland**, `xdotool` may be restricted. At the Ubuntu login screen, click the gear icon and select **"Ubuntu on Xorg"**.
 
+```bash
+sudo apt install xdotool xclip
+
+```
+
+---
+
 ### No Logs in Terminal
 
 The app is designed to run in **Unbuffered Mode**. Ensure you are launching via `./run_zerog.sh` which uses the `python3 -u` flag.
 
 ---
+
+### Audio Hardware Lock
+
+If the microphone isn't responding, check `pavucontrol` (PulseAudio Volume Control) to ensure the Python process has access to the correct input device.
+
+---
+
+## 🧪 R&D (Development)
+
+To run simulation scenarios on Linux:
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/
+
+```
+
 
 ## 🧪 R&D (Diagnostics)
 
@@ -125,5 +177,3 @@ python3 debug_model.py
 **ZeroG: Don't let gravity hold back your thoughts.**
 
 ---
-
-**Would you like me to help you create a `.desktop` file so you can launch ZeroG directly from your Ubuntu app drawer?**

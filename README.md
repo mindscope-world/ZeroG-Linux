@@ -37,8 +37,8 @@ This fork focuses on rebuilding, refactoring, and extending the application to r
 ### 1. Board the Ship
 
 ```bash
-git clone https://github.com/antonynjoro/MacDictate.git
-cd MacDictate
+https://github.com/mindscope-world/ZeroG-Linux.git
+cd ZeroG-Linux
 
 ```
 
